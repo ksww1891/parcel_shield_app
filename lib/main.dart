@@ -102,7 +102,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int packageCount = 1; // 테스트용 데이터
+  bool hasPackage = false; // 택배 유무 상태 (true: 있음, false: 없음)
+  bool isCameraActive = true; // 카메라 작동 상태 (true: 켜짐, false: 에러/꺼짐)
 
   @override
   Widget build(BuildContext context) {
@@ -133,8 +134,13 @@ class _HomeScreenState extends State<HomeScreen> {
             const Text("실시간 상태", style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: -1)),
             const SizedBox(height: 20),
 
-            // Expanded로 남는 공간 모두 채우기 (스크롤 방지)
-            Expanded(child: PackageVisualizer(packageCount: packageCount)),
+            // 🌟 Expanded로 남는 공간 모두 채우기 (새로워진 시각화 위젯 적용)
+            Expanded(
+              child: PackageVisualizer(
+                hasPackage: hasPackage,
+                isCameraActive: isCameraActive,
+              ),
+            ),
 
             const SizedBox(height: 30),
             Row(
@@ -142,34 +148,33 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 StatusInfoCard(
                   title: "보안 상태",
-                  value: packageCount > 0 ? "안전함" : "비어있음",
+                  value: isCameraActive ? "안전함" : "확인 필요",
                   icon: CupertinoIcons.shield_fill,
-                  color: Colors.green,
+                  color: isCameraActive ? Colors.green : Colors.redAccent,
                 ),
                 StatusInfoCard(
-                  title: "현재 무게",
-                  value: "${(packageCount * 1.2).toStringAsFixed(1)}kg",
-                  icon: CupertinoIcons.gauge,
-                  color: Colors.orange,
+                  title: "보관함 내부",
+                  value: hasPackage ? "물품 있음" : "비어있음",
+                  icon: hasPackage ? CupertinoIcons.cube_box_fill : CupertinoIcons.cube_box,
+                  color: hasPackage ? Colors.orange : Colors.grey,
                 ),
               ],
             ),
             const SizedBox(height: 30),
 
-            // 🌟 블루투스 잠금 해제 버튼
+            // 🌟 테스트용 버튼 (택배 넣기 / 꺼내기 토글)
             SizedBox(
               width: double.infinity,
               height: 65,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  print("블루투스 잠금 해제 신호 전송!");
-                  // 임시 테스트용 애니메이션 효과
-                  setState(() => packageCount = packageCount == 0 ? 1 : 0);
+                  // 버튼 누를 때마다 택배 유무 상태 뒤집기
+                  setState(() => hasPackage = !hasPackage);
                 },
-                icon: const Icon(CupertinoIcons.lock_open_fill, size: 26),
-                label: const Text("보관함 열기", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                icon: Icon(hasPackage ? CupertinoIcons.lock_open_fill : CupertinoIcons.tray_arrow_down_fill, size: 26),
+                label: Text(hasPackage ? "보관함 열기 (물품 수령)" : "택배 넣기 (테스트)", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF007AFF),
+                  backgroundColor: hasPackage ? const Color(0xFF007AFF) : Colors.green,
                   foregroundColor: Colors.white,
                   elevation: 5,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -526,51 +531,223 @@ class LogTimelineList extends StatelessWidget {
 // ==========================================
 // 하위 위젯 3. 홈 화면 박스 시각화 애니메이션
 // ==========================================
-class PackageVisualizer extends StatelessWidget {
-  final int packageCount;
+class PackageVisualizer extends StatefulWidget {
+  final bool hasPackage;
+  final bool isCameraActive;
 
-  const PackageVisualizer({super.key, required this.packageCount});
+  const PackageVisualizer({
+    super.key,
+    required this.hasPackage,
+    required this.isCameraActive,
+  });
+
+  @override
+  State<PackageVisualizer> createState() => _PackageVisualizerState();
+}
+
+class _PackageVisualizerState extends State<PackageVisualizer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _blinkController;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _opacityAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(parent: _blinkController, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          colors: [Color(0xFFE0EAFC), Color(0xFFCFDEF3)],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(40),
-        boxShadow: [BoxShadow(color: Colors.blue.withValues(alpha: 0.1), blurRadius: 30, offset: const Offset(0, 15))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueGrey.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+          )
+        ],
+        border: Border.all(color: Colors.grey.shade200, width: 2),
       ),
       child: Stack(
-        alignment: Alignment.center,
         children: [
+          // 모델명
           Positioned(
-            bottom: 60,
-            child: Container(
-              width: 180, height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.5),
-                borderRadius: BorderRadius.circular(15),
+            top: 40,
+            left: 35,
+            child: Text(
+              "Parcel Shield",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Colors.grey.shade300,
+                height: 1.1,
+                letterSpacing: -0.5,
               ),
             ),
           ),
-          for (int i = 0; i < packageCount; i++)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.elasticOut,
-              bottom: 80.0 + (i * 55),
-              child: Container(
-                width: 120, height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
-                ),
-                child: const Icon(CupertinoIcons.archivebox, color: Colors.brown, size: 30),
+
+          // 📸 우측 상단: 카메라 모듈 (레이저 각인 느낌의 디자인)
+          Positioned(
+            top: 85,
+            right: 65,
+            child: Container(
+              width: 110, // 렌즈를 밀어내기 위해 가로를 살짝 더 키움 (115 -> 120)
+              height: 70,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey.shade300, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // 1. 🌟 카메라 렌즈 (중앙 -> 좌측 12px 지점으로 이동)
+                  Positioned(
+                    left: 15,
+                    top: 15, // 세로 중앙 정렬 (70 높이에서 40 크기 렌즈면 상하 15 여백)
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.shade400, width: 2),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.shade800,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 2. 상태 인디케이터 LED (우측 상단 배치)
+                  Positioned(
+                    top: 15, // 렌즈와 겹치지 않게 높이 조절
+                    right: 15,
+                    child: FadeTransition(
+                      opacity: widget.isCameraActive ? _opacityAnimation : const AlwaysStoppedAnimation(1.0),
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.isCameraActive ? Colors.redAccent : Colors.grey,
+                          boxShadow: [
+                            if (widget.isCameraActive)
+                              BoxShadow(
+                                color: Colors.redAccent.withOpacity(0.8),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              )
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 3. 🌟 상태 텍스트 (LED 바로 아래로 배치하여 가독성 향상)
+                  Positioned(
+                    top: 30, // LED(15) 아래로 간격 띄움
+                    right: 12, // 오른쪽 끝 정렬
+                    child: Text(
+                      widget.isCameraActive ? "REC" : "OFFLINE",
+                      style: TextStyle(
+                        fontSize: 9, // 조금 더 잘 보이게 폰트 업 (8 -> 9)
+                        color: widget.isCameraActive ? Colors.redAccent : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
+
+          // 📦 좌측 하단: 무게 감지부 및 파란 회색 택배 상자
+          Positioned(
+            bottom: 55,
+            left: 65,
+            child: SizedBox(
+              width: 210,
+              height: 210,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  // 1. 바닥 저울 패드
+                  Container(
+                    height: 25,
+                    width: 190,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300, width: 2),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "WEIGHT SENSOR",
+                        style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+
+                  // 2. 파란 회색 택배 상자
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInExpo,
+                    bottom: widget.hasPackage ? 30.0 : 70.0,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: widget.hasPackage ? 1.0 : 0.0,
+                      child: Container(
+                        width: 160,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.shade100,
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.blueGrey.shade300, width: 2),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            CupertinoIcons.cube_box,
+                            color: Colors.blueGrey.shade600,
+                            size: 65,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
