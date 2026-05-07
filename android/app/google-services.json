@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "351259373971",
+    "firebase_url": "https://security-delivery-system-default-rtdb.firebaseio.com",
+    "project_id": "security-delivery-system",
+    "storage_bucket": "security-delivery-system.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:351259373971:android:1726b38f50d10cfb70f866",
+        "android_client_info": {
+          "package_name": "com.example.parcel_shield"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTCV7pJFb_BiPebKQEFTLdg3cUCOZbn40"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:351259373971:android:af46a2f96442f2be70f866",
+        "android_client_info": {
+          "package_name": "com.iot.security_delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTCV7pJFb_BiPebKQEFTLdg3cUCOZbn40"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

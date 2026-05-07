@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:permission_handler/permission_handler.dart'; // 💡 권한 패키지
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // CLI가 자동으로 만들어준 파일
+import 'dart:collection';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-void main() => runApp(const SafePackageApp());
+void main() async {
+  // 플러터 프레임워크가 파이어베이스와 통신할 준비가 되도록 보장
+  WidgetsFlutterBinding.ensureInitialized();
 
+  // 파이어베이스 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(const SafePackageApp());
+}
 class SafePackageApp extends StatelessWidget {
   const SafePackageApp({super.key});
 
@@ -102,8 +118,67 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool hasPackage = false; // 택배 유무 상태 (true: 있음, false: 없음)
-  bool isCameraActive = true; // 카메라 작동 상태 (true: 켜짐, false: 에러/꺼짐)
+  bool hasPackage = true;
+  bool isCameraActive = true;
+
+  // 💡 블루투스 스캔 상태 표시용 변수
+  bool isScanning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱(홈 화면)이 켜지자마자 권한을 묻고 스캔을 시작합니다.
+    _checkPermissionsAndScan();
+  }
+
+  // 🌟 블루투스 및 위치 권한 요청 함수
+  Future<void> _checkPermissionsAndScan() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.location,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+
+    // 권한이 모두 허용되었으면 스캔 시작!
+    if (statuses[Permission.bluetoothScan]!.isGranted &&
+        statuses[Permission.bluetoothConnect]!.isGranted) {
+      _startBluetoothScan();
+    } else {
+      print("❌ 블루투스 권한이 거부되었습니다.");
+    }
+  }
+
+  // 🌟 주변 블루투스 기기 스캔 함수
+  void _startBluetoothScan() {
+    setState(() {
+      isScanning = true;
+    });
+
+    print("🔍 블루투스 스캔을 시작합니다...");
+
+    // 15초 동안 주변 기기 탐색
+    FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+
+    // 탐색된 기기들의 정보를 실시간으로 듣기(Listen)
+    FlutterBluePlus.scanResults.listen((results) {
+      for (ScanResult r in results) {
+        // 이름이 있는 기기만 디버그 콘솔에 출력해보기
+        if (r.device.platformName.isNotEmpty) {
+          print('📱 찾은 기기: ${r.device.platformName} / 신호 세기(RSSI): ${r.rssi}');
+        }
+
+        // TODO: 나중에 라즈베리 파이 이름을 'SafeLocker'로 설정하면 아래 로직이 작동합니다.
+        /*
+        if (r.device.platformName == 'SafeLocker') {
+          if (r.rssi > -60) {
+            print("🚀 사용자가 택배함 근처에 있습니다! 자동 문 열림 실행!");
+            // setState(() => hasPackage = false); // 예시: 문 열림 처리
+          }
+        }
+        */
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +191,10 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(CupertinoIcons.gear_alt_fill, color: Colors.black87, size: 28),
             onPressed: () {
+              print("설정 화면으로 이동!");
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(builder: (context) => const SettingsScreen())
               );
             },
           ),
@@ -130,11 +206,24 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Safe Package", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
-            const Text("실시간 상태", style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: -1)),
+            // 상단 텍스트 영역 우측에 스캔 중 표시(로딩바) 추가
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Safe Package", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
+                    Text("실시간 상태", style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: -1)),
+                  ],
+                ),
+                if (isScanning)
+                  const CupertinoActivityIndicator(radius: 12), // 빙글빙글 도는 스캔 로딩 아이콘
+              ],
+            ),
             const SizedBox(height: 20),
 
-            // 🌟 Expanded로 남는 공간 모두 채우기 (새로워진 시각화 위젯 적용)
+            // 우리가 만든 예쁜 도식화 위젯
             Expanded(
               child: PackageVisualizer(
                 hasPackage: hasPackage,
@@ -143,45 +232,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             const SizedBox(height: 30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                StatusInfoCard(
-                  title: "보안 상태",
-                  value: isCameraActive ? "안전함" : "확인 필요",
-                  icon: CupertinoIcons.shield_fill,
-                  color: isCameraActive ? Colors.green : Colors.redAccent,
-                ),
-                StatusInfoCard(
-                  title: "보관함 내부",
-                  value: hasPackage ? "물품 있음" : "비어있음",
-                  icon: hasPackage ? CupertinoIcons.cube_box_fill : CupertinoIcons.cube_box,
-                  color: hasPackage ? Colors.orange : Colors.grey,
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
 
-            // 🌟 테스트용 버튼 (택배 넣기 / 꺼내기 토글)
+            // 하단 버튼
             SizedBox(
               width: double.infinity,
               height: 65,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  // 버튼 누를 때마다 택배 유무 상태 뒤집기
-                  setState(() => hasPackage = !hasPackage);
+                  // 버튼을 누르면 다시 스캔을 재시작하도록 연결
+                  _startBluetoothScan();
                 },
-                icon: Icon(hasPackage ? CupertinoIcons.lock_open_fill : CupertinoIcons.tray_arrow_down_fill, size: 26),
-                label: Text(hasPackage ? "보관함 열기 (물품 수령)" : "택배 넣기 (테스트)", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                icon: const Icon(CupertinoIcons.bluetooth, size: 26),
+                label: const Text("주변 기기 다시 스캔", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: hasPackage ? const Color(0xFF007AFF) : Colors.green,
+                  backgroundColor: const Color(0xFF007AFF),
                   foregroundColor: Colors.white,
                   elevation: 5,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
               ),
             ),
-            const SizedBox(height: 120), // 하단 네비게이션 바가 가리지 않도록 여백
+            const SizedBox(height: 120),
           ],
         ),
       ),
@@ -236,57 +307,129 @@ class ActivityScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 3. 미디어 탭 (날짜별 갤러리 아카이브 화면)
-// ==========================================
 class MediaScreen extends StatelessWidget {
   const MediaScreen({super.key});
 
+  // ⭐️ 시간을 "00시 00분"으로 변환하는 함수
+  String _formatKoreanTime(String? time) {
+    if (time == null || time.isEmpty) return "00시 00분";
+    try {
+      // "14:30:05" 또는 "14:30" 형태를 시, 분으로 나눕니다.
+      List<String> parts = time.split(':');
+      if (parts.length >= 2) {
+        return "${parts[0]}시 ${parts[1]}분";
+      }
+    } catch (e) {
+      return time;
+    }
+    return time;
+  }
+
+  // ⭐️ 날짜를 "0000년 00월 00일"로 변환하는 함수
+  String _formatKoreanDate(String? date) {
+    if (date == null || date.isEmpty) return "알 수 없는 날짜";
+    try {
+      // "2026-05-06" 형태를 년, 월, 일로 나눕니다.
+      List<String> parts = date.split('-');
+      if (parts.length == 3) {
+        return "${parts[0]}년 ${parts[1]}월 ${parts[2]}일";
+      }
+    } catch (e) {
+      return date;
+    }
+    return date;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-      children: [
-        const SizedBox(height: 30),
-        const Text("Media Archive", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
-        const Text("저장된 미디어", style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: -1)),
-        const SizedBox(height: 30),
+    final DatabaseReference _mediaRef = FirebaseDatabase.instance.ref('media_logs');
 
-        // 🌟 날짜별 미디어 섹션 (가짜 데이터 목업)
-        _buildDateSection("오늘, 4월 9일", [
-          _buildMediaItem(isVideo: true, time: "14:30", color: Colors.blueGrey), // 영상
-          _buildMediaItem(isVideo: false, time: "10:15", color: Colors.grey),    // 사진
-          _buildMediaItem(isVideo: false, time: "08:00", color: Colors.grey),    // 사진
-        ]),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 25.0, vertical: 30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Media Archive", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
+                  Text("저장된 미디어", style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: -1)),
+                ],
+              ),
+            ),
 
-        const SizedBox(height: 30),
+            Expanded(
+              child: StreamBuilder(
+                stream: _mediaRef.orderByChild('timestamp').onValue,
+                builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                  if (snapshot.hasError) return const Center(child: Text("에러가 발생했습니다."));
+                  if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                    return const Center(child: Text("저장된 미디어가 없습니다."));
+                  }
 
-        _buildDateSection("어제, 4월 8일", [
-          _buildMediaItem(isVideo: true, time: "19:20", color: Colors.blueGrey),
-          _buildMediaItem(isVideo: false, time: "14:10", color: Colors.grey),
-        ]),
+                  Map<dynamic, dynamic> values = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                  Map<String, List<Map<dynamic, dynamic>>> groupedMedia = LinkedHashMap();
+                  List<Map<dynamic, dynamic>> allMedia = [];
 
-        const SizedBox(height: 30),
+                  values.forEach((key, value) {
+                    allMedia.add(Map<dynamic, dynamic>.from(value));
+                  });
 
-        _buildDateSection("4월 5일", [
-          _buildMediaItem(isVideo: false, time: "09:30", color: Colors.grey),
-        ]),
+                  allMedia.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
 
-        const SizedBox(height: 120), // 하단 네비게이션 바 가림 방지
-      ],
+                  for (var item in allMedia) {
+                    String date = item['date'] ?? "알 수 없는 날짜";
+                    if (!groupedMedia.containsKey(date)) {
+                      groupedMedia[date] = [];
+                    }
+                    groupedMedia[date]!.add(item);
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                    children: [
+                      ...groupedMedia.keys.map((date) {
+                        return Column(
+                          children: [
+                            // ⭐️ 섹션 헤더도 한국식 날짜로 표시
+                            _buildDateSection(
+                                _formatKoreanDate(date),
+                                groupedMedia[date]!.map((item) => _buildMediaItem(
+                                  context: context,
+                                  isVideo: item['type'] == 'video',
+                                  // ⭐️ 썸네일 라벨에 "00시 00분" 적용
+                                  time: _formatKoreanTime(item['time']),
+                                  url: item['url'] ?? "",
+                                  color: item['type'] == 'video' ? Colors.blueGrey : Colors.grey,
+                                )).toList()
+                            ),
+                            const SizedBox(height: 30),
+                          ],
+                        );
+                      }),
+                      const SizedBox(height: 120),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // 날짜 제목과 가로 스크롤 미디어 리스트를 만들어주는 함수
   Widget _buildDateSection(String date, List<Widget> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(date, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 15),
-        // 아이템들을 가로로 스크롤 가능하게 배치
         SizedBox(
-          height: 140, // 썸네일 높이 고정
+          height: 140,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: items,
@@ -296,50 +439,62 @@ class MediaScreen extends StatelessWidget {
     );
   }
 
-  // 개별 사진/영상 썸네일 카드
-  Widget _buildMediaItem({required bool isVideo, required String time, required Color color}) {
-    return Container(
-      width: 140, // 썸네일 가로 너비
-      margin: const EdgeInsets.only(right: 15),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha:0.3)),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // 중앙 아이콘 (사진 or 비디오)
-          Icon(
+  Widget _buildMediaItem({
+    required BuildContext context,
+    required bool isVideo,
+    required String time,
+    required String url,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        if (url.isEmpty) return;
+        final Uri _uri = Uri.parse(url);
+        if (!await launchUrl(_uri, mode: LaunchMode.externalApplication)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("영상을 불러올 수 없습니다.")),
+          );
+        }
+      },
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 15),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
               isVideo ? CupertinoIcons.video_camera_solid : CupertinoIcons.photo,
               color: color,
-              size: 40
-          ),
-
-          // 우측 상단 재생 버튼 (영상일 경우에만 표시)
-          if (isVideo)
+              size: 40,
+            ),
+            if (isVideo)
+              Positioned(
+                top: 10, right: 10,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: const Icon(CupertinoIcons.play_arrow_solid, color: Colors.white, size: 12),
+                ),
+              ),
             Positioned(
-              top: 10, right: 10,
+              top: 10, left: 10,
               child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(CupertinoIcons.play_arrow_solid, color: Colors.white, size: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                // ⭐️ 여기 텍스트가 이제 "14시 30분" 형태로 출력됩니다.
+                child: Text(time, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ),
-
-          // 좌측 하단 촬영 시간 표시
-          Positioned(
-            bottom: 10, left: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(time, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
