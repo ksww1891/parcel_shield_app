@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../services/bluetooth_service.dart';     // 분리한 서비스 불러오기
-import '../widgets/package_visualizer.dart';     // 분리한 위젯 불러오기
+
+// 🌟 공통 컬러 팔레트
+const Color primaryBlue = Color(0xFF3182F6);
+const Color bgLight = Color(0xFFF9FAFB); // 전체 배경색
+const Color textDark = Color(0xFF191F28); // 큰 제목/강조
+const Color textNormal = Color(0xFF4E5968); // 본문 텍스트
+const Color textGrey = Color(0xFF8B95A1); // 설명 텍스트
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -9,42 +14,54 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: bgLight, // 🌟 전체 배경을 밝게
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87), // 뒤로가기 버튼 색상
-        title: const Text("기기 설정", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: textDark), // 뒤로가기 버튼 색상
+        title: const Text("기기 설정", style: TextStyle(color: textDark, fontWeight: FontWeight.bold)),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 25.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0), // 좌우 여백 통일
         children: [
           const SizedBox(height: 20),
+
+          // 🌟 메인 기기 상태 카드 (그림자 제거, 라운딩 강화)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF007AFF),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.blue.withValues(alpha:0.3), blurRadius: 15, offset: const Offset(0, 5))],
+              color: primaryBlue,
+              borderRadius: BorderRadius.circular(24), // 부드러운 라운딩
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(CupertinoIcons.cube_box_fill, color: Colors.white, size: 40),
-                SizedBox(width: 15),
+                // 아이콘 주변에 연한 원형 배경을 주어 디테일 추가
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(CupertinoIcons.cube_box_fill, color: Colors.white, size: 32),
+                ),
+                const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("우리집 안심 택배함", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 5),
-                    Text("상태: 온라인 (블루투스 대기중)", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const Text("우리집 안심 택배함", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Text("상태: 온라인 (블루투스 대기중)", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
                   ],
                 )
               ],
             ),
           ),
-          const SizedBox(height: 30),
-          const Text("기기 관리", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
+
+          const SizedBox(height: 36),
+          const Text("기기 관리", style: TextStyle(fontSize: 15, color: textGrey, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+
+          // 설정 리스트 타일들
           _buildSettingTile("푸시 알림 켜기", CupertinoIcons.bell, true),
           _buildSettingTile("자동 잠금 해제 (RSSI)", CupertinoIcons.bluetooth, false),
           _buildSettingTile("비밀번호 변경", CupertinoIcons.lock, null),
@@ -53,25 +70,33 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  // 🌟 하위 위젯: 설정 타일 (그림자 없는 하얀색 박스 형태)
   Widget _buildSettingTile(String title, IconData icon, bool? switchValue) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      margin: const EdgeInsets.only(bottom: 12), // 간격을 살짝 좁혀서 그룹감 형성
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18), // 터치 영역(높이) 확보
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20) // 타일도 둥글게
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Icon(icon, color: Colors.black87),
-              const SizedBox(width: 15),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              Icon(icon, color: textNormal, size: 22),
+              const SizedBox(width: 16),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark)),
             ],
           ),
           if (switchValue != null)
-            CupertinoSwitch(value: switchValue, activeTrackColor: Colors.blueAccent, onChanged: (v) {})
+            CupertinoSwitch(
+                value: switchValue,
+                activeColor: primaryBlue, // 🌟 스위치 켜졌을 때 색상도 통일
+                onChanged: (v) {}
+            )
           else
-            const Icon(CupertinoIcons.chevron_right, color: Colors.grey)
+            const Icon(CupertinoIcons.chevron_right, color: textGrey, size: 20)
         ],
       ),
     );
