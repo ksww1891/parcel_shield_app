@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 // 🌟 공통 컬러 팔레트 (다른 파일과 동일하게 유지)
 const Color primaryBlue = Color(0xFF3182F6);
@@ -62,35 +63,85 @@ class ActivityScreen extends StatelessWidget {
 }
 
 // ==========================================
-// 하위 위젯 1. 알림 리스트
+// 하위 위젯 1. 알림 리스트 (Firebase 연동)
 // ==========================================
 class NotificationList extends StatelessWidget {
   const NotificationList({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-        padding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 120),
-        children: [
-          _buildNotiCard(CupertinoIcons.app_badge_fill, primaryBlue, "택배 도착", "새로운 택배가 보관함에 추가되었습니다.", "방금 전"),
-          _buildNotiCard(CupertinoIcons.exclamationmark_triangle_fill, primaryRed, "도난 주의", "보관함 근처에서 비정상적인 움직임이 감지되었습니다.", "10분 전"),
-        ]
+    final DatabaseReference _notiRef = FirebaseDatabase.instance.ref('notifications');
+
+    return StreamBuilder(
+      stream: _notiRef.onValue,
+      builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text("에러가 발생했습니다."));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: primaryBlue));
+        }
+
+        List<Map<dynamic, dynamic>> notiList = [];
+        final data = snapshot.data?.snapshot.value;
+        if (data is Map) {
+          data.forEach((key, value) {
+            if (value is Map) {
+              notiList.add({
+                'key': key,
+                ...value,
+              });
+            }
+          });
+          // 최신 알림이 위로 오도록 정렬 (timestamp 기준 역순 정렬 권장)
+          notiList.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+        }
+
+        if (notiList.isEmpty) {
+          return const Center(
+            child: Text(
+              "최근 알림이 없습니다.",
+              style: TextStyle(color: textGrey, fontSize: 16),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 120),
+          itemCount: notiList.length,
+          itemBuilder: (context, index) {
+            final item = notiList[index];
+            final String type = item['type'] ?? 'info';
+            final IconData icon = type == 'danger' 
+                ? CupertinoIcons.exclamationmark_triangle_fill 
+                : CupertinoIcons.app_badge_fill;
+            final Color color = type == 'danger' ? primaryRed : primaryBlue;
+
+            return _buildNotiCard(
+              icon,
+              color,
+              item['title'] ?? '알림',
+              item['message'] ?? '',
+              item['time'] ?? '방금 전',
+            );
+          },
+        );
+      },
     );
   }
 
-  // 🌟 그림자를 없애고 면(배경색)으로만 구분하는 카드 디자인
   Widget _buildNotiCard(IconData icon, Color color, String title, String desc, String time) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12), // 간격 소폭 축소로 세련미 추가
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24), // 부드러운 라운딩
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🌟 아이콘에 아주 연한 배경색을 깔아서 시각적인 편안함 제공
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -107,7 +158,13 @@ class NotificationList extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textDark)),
+                    Expanded(
+                      child: Text(
+                        title, 
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textDark),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     Text(time, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textGrey)),
                   ],
                 ),
@@ -123,21 +180,77 @@ class NotificationList extends StatelessWidget {
 }
 
 // ==========================================
-// 하위 위젯 2. 타임라인 리스트
+// 하위 위젯 2. 타임라인 리스트 (Firebase 연동)
 // ==========================================
 class LogTimelineList extends StatelessWidget {
   const LogTimelineList({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.only(top: 30, left: 30, right: 24, bottom: 120),
-      children: [
-        _buildTimelineItem("14:30", "택배가 추가되었습니다.", "+ 1.2kg 감지", const Color(0xFF04B014), isFirst: true), // 초록색 강조
-        _buildTimelineItem("10:15", "보관함이 열렸습니다.", "인증: 사용자 블루투스", primaryBlue),
-        _buildTimelineItem("08:00", "비정상 움직임 감지", "카메라 캡처 완료", primaryRed),
-        _buildTimelineItem("어제 19:20", "택배를 수령했습니다.", "- 3.5kg 감지", textGrey, isLast: true),
-      ],
+    final DatabaseReference _logsRef = FirebaseDatabase.instance.ref('activity_logs');
+
+    return StreamBuilder(
+      stream: _logsRef.onValue,
+      builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text("에러가 발생했습니다."));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: primaryBlue));
+        }
+
+        List<Map<dynamic, dynamic>> logList = [];
+        final data = snapshot.data?.snapshot.value;
+        if (data is Map) {
+          data.forEach((key, value) {
+            if (value is Map) {
+              logList.add({
+                'key': key,
+                ...value,
+              });
+            }
+          });
+          // 최신 로그가 위로 오도록 정렬
+          logList.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+        }
+
+        if (logList.isEmpty) {
+          return const Center(
+            child: Text(
+              "기록된 로그가 없습니다.",
+              style: TextStyle(color: textGrey, fontSize: 16),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 30, left: 30, right: 24, bottom: 120),
+          itemCount: logList.length,
+          itemBuilder: (context, index) {
+            final item = logList[index];
+            final String type = item['type'] ?? 'info';
+            
+            Color color = primaryBlue;
+            if (type == 'success') {
+              color = const Color(0xFF04B014);
+            } else if (type == 'danger') {
+              color = primaryRed;
+            } else if (type == 'grey') {
+              color = textGrey;
+            }
+
+            return _buildTimelineItem(
+              item['time'] ?? '00:00',
+              item['title'] ?? '',
+              item['subtitle'] ?? '',
+              color,
+              isFirst: index == 0,
+              isLast: index == logList.length - 1,
+            );
+          },
+        );
+      },
     );
   }
 
@@ -145,7 +258,6 @@ class LogTimelineList extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🌟 타임라인 점과 선을 더욱 깔끔하게 수정
         Column(
           children: [
             Container(width: 2, height: 20, color: isFirst ? Colors.transparent : lineGrey),
@@ -154,7 +266,7 @@ class LogTimelineList extends StatelessWidget {
               decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
-                  border: Border.all(color: bgLight, width: 3) // 배경색과 같은 테두리를 주어 파여있는 효과
+                  border: Border.all(color: bgLight, width: 3)
               ),
             ),
             Container(width: 2, height: 65, color: isLast ? Colors.transparent : lineGrey),

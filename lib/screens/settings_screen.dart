@@ -8,8 +8,17 @@ const Color textDark = Color(0xFF191F28); // 큰 제목/강조
 const Color textNormal = Color(0xFF4E5968); // 본문 텍스트
 const Color textGrey = Color(0xFF8B95A1); // 설명 텍스트
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  // 설정 스위치 상태 관리
+  bool _isNotificationEnabled = true;
+  bool _isAutoUnlockEnabled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -45,13 +54,15 @@ class SettingsScreen extends StatelessWidget {
                   child: const Icon(CupertinoIcons.cube_box_fill, color: Colors.white, size: 32),
                 ),
                 const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("우리집 안심 택배함", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    Text("상태: 온라인 (블루투스 대기중)", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                  ],
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("우리집 안심 택배함", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 6),
+                      Text("상태: 온라인 (블루투스 대기중)", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
                 )
               ],
             ),
@@ -62,16 +73,39 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 12),
 
           // 설정 리스트 타일들
-          _buildSettingTile("푸시 알림 켜기", CupertinoIcons.bell, true),
-          _buildSettingTile("자동 잠금 해제 (RSSI)", CupertinoIcons.bluetooth, false),
-          _buildSettingTile("비밀번호 변경", CupertinoIcons.lock, null),
+          _buildSettingTile(
+            "푸시 알림 켜기",
+            CupertinoIcons.bell,
+            _isNotificationEnabled,
+            (value) {
+              setState(() {
+                _isNotificationEnabled = value;
+              });
+            },
+          ),
+          _buildSettingTile(
+            "자동 잠금 해제 (RSSI)",
+            CupertinoIcons.bluetooth,
+            _isAutoUnlockEnabled,
+            (value) {
+              setState(() {
+                _isAutoUnlockEnabled = value;
+              });
+            },
+          ),
+          _buildSettingTile(
+            "비밀번호 변경",
+            CupertinoIcons.lock,
+            null,
+            null,
+          ),
         ],
       ),
     );
   }
 
   // 🌟 하위 위젯: 설정 타일 (그림자 없는 하얀색 박스 형태)
-  Widget _buildSettingTile(String title, IconData icon, bool? switchValue) {
+  Widget _buildSettingTile(String title, IconData icon, bool? switchValue, ValueChanged<bool>? onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12), // 간격을 살짝 좁혀서 그룹감 형성
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18), // 터치 영역(높이) 확보
@@ -89,11 +123,11 @@ class SettingsScreen extends StatelessWidget {
               Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark)),
             ],
           ),
-          if (switchValue != null)
+          if (switchValue != null && onChanged != null)
             CupertinoSwitch(
                 value: switchValue,
                 activeColor: primaryBlue, // 🌟 스위치 켜졌을 때 색상도 통일
-                onChanged: (v) {}
+                onChanged: onChanged,
             )
           else
             const Icon(CupertinoIcons.chevron_right, color: textGrey, size: 20)
