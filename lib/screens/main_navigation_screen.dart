@@ -38,7 +38,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
           // 🌟 하단 플로팅 네비게이션 바 (토스 스타일)
           Positioned(
-            left: 24, right: 24, bottom: 40, // 🌟 좌우 여백을 다른 화면(24)과 통일하고 살짝 더 위로 띄움
+            left: 24.0, right: 24.0, bottom: 40.0, // 🌟 좌우 여백을 다른 화면(24)과 통일하고 살짝 더 위로 띄움
             child: Container(
               height: 64, // 🌟 높이를 슬림하게 조절하여 세련미 추가
               decoration: BoxDecoration(
@@ -47,13 +47,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 boxShadow: [
                   // 🌟 진한 그림자 대신 아주 넓고 부드러운 그림자로 떠있는 느낌 강조
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
                   // 🌟 은은한 테두리 효과를 위한 미세한 그림자
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 1,
                     spreadRadius: 1,
                   ),
@@ -84,7 +84,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         child: Icon(
           icon,
           // 🌟 선택된 아이콘은 쨍한 파란색, 선택되지 않은 것은 연한 회색으로 명확한 대비
-          color: isSelected ? primaryBlue : textGrey.withOpacity(0.5),
+          color: isSelected ? primaryBlue : textGrey.withValues(alpha: 0.5),
           size: 28, // 아이콘 크기를 살짝 줄여서 모던한 느낌을 줌
         ),
       ),
