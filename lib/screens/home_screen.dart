@@ -72,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _initBluetooth() async {
     bool hasPermission = await BluetoothService.checkPermissions();
     if (hasPermission) {
-      print("✅ 블루투스 권한 확인 완료.");
+      debugPrint("✅ 블루투스 권한 확인 완료.");
     }
   }
 

@@ -205,9 +205,9 @@ class MediaScreen extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
       // 🌟 에러의 진짜 원인과 문제가 된 URL을 콘솔에 출력해봅니다.
-                    print("🚨 이미지 로드 실패!");
-                    print("에러 내용: $error");
-                    print("실패한 URL: $thumbnailUrl");
+                    debugPrint("🚨 이미지 로드 실패!");
+                    debugPrint("에러 내용: $error");
+                    debugPrint("실패한 URL: $thumbnailUrl");
   
                     return Icon(CupertinoIcons.piano, color: textGrey.withAlpha(128), size: 34);
                   },

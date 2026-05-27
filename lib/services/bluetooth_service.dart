@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter/material.dart';
 
 class BluetoothService {
   // 🌟 우리가 찾을 타겟 UUID (임의로 설정함. 나중에 라즈베리파이 코드와 동일하게 맞춰야 합니다)
@@ -25,7 +26,7 @@ class BluetoothService {
     required Function() onDeviceUnlocked,
   }) async {
     onScanStateChanged(true);
-    print("🔍 블루투스 스캔을 시작합니다...");
+    debugPrint("🔍 블루투스 스캔을 시작합니다...");
 
     await _scanSubscription?.cancel();
     _scanSubscription = null;
@@ -41,11 +42,11 @@ class BluetoothService {
         );
 
         if (hasTargetUuid) {
-          print('📱 내 택배함(UUID 일치) 발견! 신호 세기(RSSI): ${r.rssi}');
+          debugPrint('📱 내 택배함(UUID 일치) 발견! 신호 세기(RSSI): ${r.rssi}');
 
           // UUID도 맞고, 신호 세기도 기준치보다 강할 때만!
           if (r.rssi > unlockRssiThreshold) {
-            print("🚀 거리가 가깝습니다. 인증 성공 및 잠금 해제 실행!");
+            debugPrint("🚀 거리가 가깝습니다. 인증 성공 및 잠금 해제 실행!");
 
             FlutterBluePlus.stopScan();
             onScanStateChanged(false);
