@@ -209,7 +209,7 @@ class MediaScreen extends StatelessWidget {
                     debugPrint("에러 내용: $error");
                     debugPrint("실패한 URL: $thumbnailUrl");
   
-                    return Icon(CupertinoIcons.piano, color: textGrey.withAlpha(128), size: 34);
+                    return Icon(CupertinoIcons.photo, color: textGrey.withAlpha(128), size: 34);
                   },
                 ),
               )
