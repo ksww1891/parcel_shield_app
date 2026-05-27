@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:collection';
 
 // 🌟 범용적인 이름으로 컬러 팔레트 재정의
 const Color primaryBlue = Color(0xFF3182F6);
