@@ -186,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // 🌟 버튼 색상에 맞춘 아주 연한 그림자 추가
                       boxShadow: [
                         BoxShadow(
-                          color: (isLocked ? primaryBlue : primaryRed).withOpacity(0.15),
+                          color: (isLocked ? primaryBlue : primaryRed).withValues(alpha: 0.15),
                           blurRadius: 15,
                           offset: const Offset(0, 5),
                         ),

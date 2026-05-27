@@ -55,7 +55,7 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
         boxShadow: [
           // 🌟 토스 특유의 아주 은은하고 넓게 퍼지는 그림자
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 24,
             offset: const Offset(0, 8),
           )
@@ -71,7 +71,7 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: tossBg.withOpacity(0.8), // 아주 연하게 배경처럼
+                color: tossBg.withValues(alpha: 0.8), // 아주 연하게 배경처럼
                 letterSpacing: -0.5,
               ),
             ),
