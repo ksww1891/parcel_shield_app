@@ -126,7 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (switchValue != null && onChanged != null)
             CupertinoSwitch(
                 value: switchValue,
-                activeColor: primaryBlue, // 🌟 스위치 켜졌을 때 색상도 통일
+                activeTrackColor: primaryBlue, // 🌟 스위치 켜졌을 때 색상도 통일
                 onChanged: onChanged,
             )
           else

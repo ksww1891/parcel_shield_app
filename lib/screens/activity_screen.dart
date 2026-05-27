@@ -70,10 +70,10 @@ class NotificationList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DatabaseReference _notiRef = FirebaseDatabase.instance.ref('notifications');
+    final DatabaseReference notiRef = FirebaseDatabase.instance.ref('notifications');
 
     return StreamBuilder(
-      stream: _notiRef.onValue,
+      stream: notiRef.onValue,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text("에러가 발생했습니다."));
@@ -187,10 +187,10 @@ class LogTimelineList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DatabaseReference _logsRef = FirebaseDatabase.instance.ref('activity_logs');
+    final DatabaseReference logsRef = FirebaseDatabase.instance.ref('logs');
 
     return StreamBuilder(
-      stream: _logsRef.onValue,
+      stream: logsRef.onValue,
       builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text("에러가 발생했습니다."));

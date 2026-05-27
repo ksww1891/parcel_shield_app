@@ -42,7 +42,8 @@ class MediaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DatabaseReference _mediaRef = FirebaseDatabase.instance.ref('media_logs');
+    // 🌟 경로가 올바른지 파이어베이스 콘솔과 꼭 비교하세요!
+    final DatabaseReference mediaRef = FirebaseDatabase.instance.ref('media_logs');
 
     return Scaffold(
       backgroundColor: bgLight,
@@ -64,23 +65,48 @@ class MediaScreen extends StatelessWidget {
 
             Expanded(
               child: StreamBuilder(
-                stream: _mediaRef.orderByChild('timestamp').onValue,
+                stream: mediaRef.orderByChild('timestamp').onValue,
                 builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                  if (snapshot.hasError) return const Center(child: Text("에러가 발생했습니다."));
+                  // 1. 에러 발생 시 처리
+                  if (snapshot.hasError) {
+                    return Center(child: Text("에러가 발생했습니다:\n${snapshot.error}"));
+                  }
+                  
+                  // 2. 데이터 로딩 중 처리 (무한 로딩 방지용 대기 화면)
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CupertinoActivityIndicator(radius: 12));
+                  }
+
+                  // 3. 데이터가 비어있을 때 처리
                   if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
                     return const Center(child: Text("저장된 미디어가 없습니다.", style: TextStyle(color: textGrey)));
                   }
 
-                  Map<dynamic, dynamic> values = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-                  Map<String, List<Map<dynamic, dynamic>>> groupedMedia = LinkedHashMap();
-                  List<Map<dynamic, dynamic>> allMedia = [];
+                  // 🌟 안전하게 Map 구조로 받아오기 (형변환 에러 전면 수정)
+                  final Object? rawValue = snapshot.data!.snapshot.value;
+                  if (rawValue is! Map) {
+                    return const Center(child: Text("데이터 형식이 올바르지 않습니다."));
+                  }
 
+                  final Map<dynamic, dynamic> values = rawValue;
+                  final Map<String, List<Map<String, dynamic>>> groupedMedia = {};
+                  final List<Map<String, dynamic>> allMedia = [];
+
+                  // 안전하게 복사 및 주입
                   values.forEach((key, value) {
-                    allMedia.add(Map<dynamic, dynamic>.from(value));
+                    if (value is Map) {
+                      allMedia.add(Map<String, dynamic>.from(value));
+                    }
                   });
 
-                  allMedia.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+                  // 최신순 정렬 (timestamp 기준 내림차순)
+                  allMedia.sort((a, b) {
+                    final aTime = a['timestamp'] ?? 0;
+                    final bTime = b['timestamp'] ?? 0;
+                    return bTime.compareTo(aTime);
+                  });
 
+                  // 날짜별 그룹화
                   for (var item in allMedia) {
                     String date = item['date'] ?? "알 수 없는 날짜";
                     if (!groupedMedia.containsKey(date)) {
@@ -90,6 +116,7 @@ class MediaScreen extends StatelessWidget {
                   }
 
                   return ListView(
+                    physics: const BouncingScrollPhysics(), // iOS 스타일 부드러운 스크롤
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     children: [
                       ...groupedMedia.keys.map((date) => _buildDateSection(
@@ -109,8 +136,7 @@ class MediaScreen extends StatelessWidget {
     );
   }
 
-  // 🌟 함수명 변경: _buildTossDateSection -> _buildDateSection
-  Widget _buildDateSection(BuildContext context, String date, List<Map<dynamic, dynamic>> items) {
+  Widget _buildDateSection(BuildContext context, String date, List<Map<String, dynamic>> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -127,9 +153,10 @@ class MediaScreen extends StatelessWidget {
           child: SizedBox(
             height: 120,
             child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
               scrollDirection: Axis.horizontal,
               itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final item = items[index];
                 return _buildMediaThumbnail(context, item);
@@ -142,19 +169,20 @@ class MediaScreen extends StatelessWidget {
     );
   }
 
-  // 🌟 함수명 변경: _buildTossMediaThumbnail -> _buildMediaThumbnail
-  Widget _buildMediaThumbnail(BuildContext context, Map<dynamic, dynamic> item) {
+  Widget _buildMediaThumbnail(BuildContext context, Map<String, dynamic> item) {
     bool isVideo = item['type'] == 'video';
     String url = item['url'] ?? "";
 
     return GestureDetector(
       onTap: () async {
         if (url.isEmpty) return;
-        final Uri _uri = Uri.parse(url);
-        if (!await launchUrl(_uri, mode: LaunchMode.externalApplication)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("영상을 불러올 수 없습니다.")),
-          );
+        final Uri uri = Uri.parse(url);
+        if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("영상을 불러올 수 없습니다.")),
+            );
+          }
         }
       },
       child: Container(
@@ -167,9 +195,10 @@ class MediaScreen extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Icon(
-                isVideo ? CupertinoIcons.video_camera_solid : CupertinoIcons.photo,
-                color: textGrey.withOpacity(0.5),
-                size: 34
+              isVideo ? CupertinoIcons.video_camera_solid : CupertinoIcons.photo,
+              // 🌟 플러터 3.27 디프리케이트 경고 해결을 위해 withAlpha 사용
+              color: textGrey.withAlpha(128), 
+              size: 34
             ),
 
             Positioned(
@@ -182,8 +211,8 @@ class MediaScreen extends StatelessWidget {
 
             if (isVideo)
               const Positioned(
-                  top: 10, right: 10,
-                  child: Icon(CupertinoIcons.play_circle_fill, color: primaryBlue, size: 22)
+                top: 10, right: 10,
+                child: Icon(CupertinoIcons.play_circle_fill, color: primaryBlue, size: 22)
               ),
           ],
         ),
