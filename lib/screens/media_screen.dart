@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:intl/intl.dart'; // 🌟 날짜/시간 포맷팅을 위해 추가
+import 'package:intl/intl.dart';
 
 const Color primaryBlue = Color(0xFF3182F6);
 const Color bgLight = Color(0xFFF9FAFB);
@@ -15,8 +15,8 @@ class MediaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 경로를 activity_screen과 동일하게 'logs/기기ID'로 통합합니다!
-    final DatabaseReference logsRef = FirebaseDatabase.instance.ref('logs/device_uuid_001');
+    // 🌟 변경 포인트 1: 새로운 상위 노드 구조인 'device_logs'로 경로 변경!
+    final DatabaseReference logsRef = FirebaseDatabase.instance.ref('device_logs/device_uuid_001');
 
     return Scaffold(
       backgroundColor: bgLight,
@@ -70,17 +70,20 @@ class MediaScreen extends StatelessWidget {
                       if ((imageUrl != null && imageUrl.isNotEmpty) || 
                           (videoUrl != null && videoUrl.isNotEmpty)) {
                         
-                        // ISO 8601 날짜 파싱
-                        String rawTimestamp = value['timestamp'] ?? '';
                         String dateStr = "알 수 없는 날짜";
                         String timeStr = "00:00";
+                        int timestampMs = 0; // 정렬을 위해 저장해둘 숫자형 타임스탬프
 
-                        try {
-                          DateTime timeObj = DateTime.parse(rawTimestamp).toLocal();
-                          dateStr = DateFormat('yyyy년 MM월 dd일').format(timeObj);
-                          timeStr = DateFormat('HH시 mm분').format(timeObj);
-                        } catch(e) {
-                          // 파싱 실패 시 기본값 유지
+                        // 🌟 변경 포인트 2: 숫자형 타임스탬프(밀리초)를 DateTime으로 변환
+                        if (value['timestamp'] != null) {
+                          try {
+                            timestampMs = int.parse(value['timestamp'].toString());
+                            DateTime timeObj = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+                            dateStr = DateFormat('yyyy년 MM월 dd일').format(timeObj);
+                            timeStr = DateFormat('HH시 mm분').format(timeObj);
+                          } catch(e) {
+                            // 파싱 실패 시 기본값 유지
+                          }
                         }
 
                         mediaLogs.add({
@@ -89,14 +92,14 @@ class MediaScreen extends StatelessWidget {
                           'videoUrl': videoUrl,
                           'date': dateStr,
                           'time': timeStr,
-                          'timestamp': rawTimestamp, // 정렬용 원본 시간
+                          'timestamp': timestampMs, // 정렬용으로 Int 값 자체를 넣음
                         });
                       }
                     }
                   });
 
-                  // 2. 최신순 정렬 (timestamp 내림차순)
-                  mediaLogs.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+                  // 🌟 변경 포인트 3: 숫자(Int) 기반으로 안전하게 내림차순(최신순) 정렬
+                  mediaLogs.sort((a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
 
                   // 미디어 로그가 하나도 없을 경우
                   if (mediaLogs.isEmpty) {
@@ -134,6 +137,7 @@ class MediaScreen extends StatelessWidget {
     );
   }
 
+  // (아래 UI 그리는 메서드들은 기존과 동일하게 완벽하므로 그대로 유지합니다)
   Widget _buildDateSection(BuildContext context, String date, List<Map<String, dynamic>> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,11 +172,8 @@ class MediaScreen extends StatelessWidget {
   }
 
   Widget _buildMediaThumbnail(BuildContext context, Map<String, dynamic> item) {
-    // 비디오 URL이 존재하는지 확인
     bool isVideo = item['videoUrl'] != null && item['videoUrl'].toString().isNotEmpty;
-    // 터치 시 열어줄 링크 (비디오가 우선, 없으면 이미지)
     String targetUrl = isVideo ? item['videoUrl'] : (item['imageUrl'] ?? "");
-    // 썸네일로 보여줄 이미지 URL
     String? thumbnailUrl = item['imageUrl'];
 
     return GestureDetector(
@@ -193,35 +194,30 @@ class MediaScreen extends StatelessWidget {
           color: cardBg,
           borderRadius: BorderRadius.circular(16),
         ),
-        clipBehavior: Clip.hardEdge, // 이미지가 모서리를 넘어가지 않게 잘라줌
+        clipBehavior: Clip.hardEdge, 
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 🌟 썸네일 이미지가 있다면 배경으로 깔아줍니다!
             if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
               Positioned.fill(
                 child: Image.network(
                   thumbnailUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-      // 🌟 에러의 진짜 원인과 문제가 된 URL을 콘솔에 출력해봅니다.
                     debugPrint("🚨 이미지 로드 실패!");
                     debugPrint("에러 내용: $error");
                     debugPrint("실패한 URL: $thumbnailUrl");
-  
                     return Icon(CupertinoIcons.photo, color: textGrey.withAlpha(128), size: 34);
                   },
                 ),
               )
             else
-              // 썸네일이 없을 때 보여줄 기본 아이콘
               Icon(
                 isVideo ? CupertinoIcons.video_camera_solid : CupertinoIcons.photo,
                 color: textGrey.withAlpha(128), 
                 size: 34
               ),
 
-            // 이미지 위에 살짝 어두운 그라데이션을 깔아 텍스트가 잘 보이게 함
             if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
               Positioned.fill(
                 child: DecoratedBox(
@@ -235,7 +231,6 @@ class MediaScreen extends StatelessWidget {
                 ),
               ),
 
-            // 시간 텍스트 (이미지가 있으면 흰색, 없으면 회색)
             Positioned(
               bottom: 12,
               child: Text(
@@ -248,7 +243,6 @@ class MediaScreen extends StatelessWidget {
               ),
             ),
 
-            // 비디오인 경우 플레이 버튼 오버레이
             if (isVideo)
               const Positioned(
                 top: 10, right: 10,

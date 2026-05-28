@@ -58,7 +58,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
         backgroundColor: bgLight,
         elevation: 0,
         toolbarHeight: 100,
-
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -68,7 +67,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
             Row(
               children: [
                 const Text("활동 기록", style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 28, letterSpacing: -0.5)),
-                // 선택된 날짜가 있으면 표시해주는 뱃지
                 if (_selectedDate != null) ...[
                   const SizedBox(width: 12),
                   Container(
@@ -89,7 +87,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
         ),
         centerTitle: false,
         actions: [
-          // 필터 해제 버튼 (날짜가 선택되어 있을 때만 보임)
           if (_selectedDate != null)
             IconButton(
               icon: const Icon(CupertinoIcons.clear_circled, color: textGrey),
@@ -99,13 +96,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 });
               },
             ),
-          // 🌟 달력 버튼 수정됨 🌟
           IconButton(
             icon: const Icon(CupertinoIcons.calendar, color: primaryBlue, size: 28),
-            // padding: const EdgeInsets.only(right: 20), <-- 이 부분이 문제여서 삭제했습니다!
             onPressed: _pickDate,
           ),
-          // 버튼 바깥에 안전하게 우측 여백을 줍니다.
           const SizedBox(width: 12), 
         ],
       ),
@@ -125,11 +119,10 @@ class UnifiedLogList extends StatefulWidget {
 
 class _UnifiedLogListState extends State<UnifiedLogList> {
   final ScrollController _scrollController = ScrollController();
-  int _currentLimit = 20; // 초기 로딩 개수
+  int _currentLimit = 20; 
   
-  // 🌟 추가된 부분: 데이터 유지 및 스크롤 튕김 방지
   List<Map<dynamic, dynamic>> _cachedLogs = []; 
-  bool _isLoadingMore = false; // 중복 스크롤 호출 방지
+  bool _isLoadingMore = false; 
 
   @override
   void initState() {
@@ -143,7 +136,6 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     super.dispose();
   }
 
-  // 🌟 추가된 부분: 날짜(달력) 필터가 바뀌면 캐시를 초기화합니다.
   @override
   void didUpdateWidget(UnifiedLogList oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -155,17 +147,14 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     }
   }
 
-  // 스크롤이 맨 바닥에 닿으면 20개씩 추가 로딩
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 50) {
-      // 무한 스크롤 모드이고, 현재 데이터를 더 불러오고 있지 않을 때만 실행
       if (widget.selectedDate == null && !_isLoadingMore) {
         setState(() {
           _isLoadingMore = true;
           _currentLimit += 20;
         });
 
-        // 0.5초 쿨타임 (스크롤을 마구 내렸을 때 여러 번 불러오는 것 방지)
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             setState(() {
@@ -177,13 +166,29 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     }
   }
 
-  // 상황에 맞는 Firebase Query 생성
+  // 🌟 변경 포인트 1 & 2: 경로 수정 및 숫자형 타임스탬프 필터링 적용
   Query get _buildQuery {
-    Query query = FirebaseDatabase.instance.ref('logs/device_uuid_001').orderByChild('timestamp');
+    // 경로를 상위 그룹화 노드인 'device_logs'로 변경
+    Query query = FirebaseDatabase.instance.ref('device_logs/device_uuid_001').orderByChild('timestamp');
 
     if (widget.selectedDate != null) {
-      String dateStr = DateFormat('yyyy-MM-dd').format(widget.selectedDate!);
-      query = query.startAt(dateStr).endAt("$dateStr\uf8ff");
+      // 선택한 날짜의 00시 00분 00초 (밀리초)
+      int startOfDayMs = DateTime(
+        widget.selectedDate!.year, 
+        widget.selectedDate!.month, 
+        widget.selectedDate!.day
+      ).millisecondsSinceEpoch;
+      
+      // 선택한 날짜의 23시 59분 59초 (밀리초)
+      int endOfDayMs = DateTime(
+        widget.selectedDate!.year, 
+        widget.selectedDate!.month, 
+        widget.selectedDate!.day, 
+        23, 59, 59, 999
+      ).millisecondsSinceEpoch;
+
+      // 숫자(밀리초) 범위로 필터링
+      query = query.startAt(startOfDayMs).endAt(endOfDayMs);
     } else {
       query = query.limitToLast(_currentLimit);
     }
@@ -199,7 +204,6 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
           return const Center(child: Text("에러가 발생했습니다."));
         }
 
-        // 🌟 수정된 부분: 데이터가 들어오면 '_cachedLogs'에 덮어씌움
         if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
           List<Map<dynamic, dynamic>> freshList = [];
           final data = snapshot.data!.snapshot.value;
@@ -207,21 +211,23 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
             data.forEach((key, value) {
               if (value is Map) {
                 freshList.add({
-                  'key': key,
+                  'key': key, // 자동 생성된 Push Key (-Nxyz...)
                   ...value,
                 });
               }
             });
-            // 최신순 정렬 (내림차순)
-            freshList.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
-            _cachedLogs = freshList; // 기존 화면을 유지하면서 데이터만 업데이트
+            // 🌟 변경 포인트 3: 정수형(Int)으로 변환 후 안전하게 내림차순 정렬
+            freshList.sort((a, b) {
+              int timeA = int.tryParse(a['timestamp'].toString()) ?? 0;
+              int timeB = int.tryParse(b['timestamp'].toString()) ?? 0;
+              return timeB.compareTo(timeA);
+            });
+            _cachedLogs = freshList; 
           }
         } else if (snapshot.connectionState == ConnectionState.active && snapshot.data?.snapshot.value == null) {
-          // 데이터가 아예 삭제된 경우
           _cachedLogs = [];
         }
 
-        // 🌟 수정된 부분: 캐시된 데이터가 아예 없을 때만 로딩 스피너 표시
         if (_cachedLogs.isEmpty && snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CupertinoActivityIndicator(radius: 14));
         }
@@ -232,7 +238,6 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
           );
         }
 
-        // 🌟 수정된 부분: snapshot 데이터가 아닌 캐시된 데이터(_cachedLogs)를 사용하여 화면 그리기
         return ListView.builder(
           controller: _scrollController,
           physics: const BouncingScrollPhysics(),
@@ -246,13 +251,15 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
             final String? imageUrl = item['imageUrl'];
             final String? videoUrl = item['videoUrl'];
             
+            // 🌟 변경 포인트 4: Unix Epoch(밀리초)를 DateTime으로 변환하여 화면에 표시
             String timeFormatted = '알 수 없음';
             if (item['timestamp'] != null) {
               try {
-                DateTime time = DateTime.parse(item['timestamp']).toLocal();
+                int timestampMs = int.parse(item['timestamp'].toString());
+                DateTime time = DateTime.fromMillisecondsSinceEpoch(timestampMs);
                 timeFormatted = DateFormat('MM월 dd일 HH:mm').format(time);
               } catch (e) {
-                timeFormatted = item['timestamp'];
+                timeFormatted = item['timestamp'].toString();
               }
             }
 
@@ -289,7 +296,6 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     );
   }
 
-  // (아래에 있던 _buildLogCard 메서드는 기존과 100% 동일하게 유지하시면 됩니다!)
   Widget _buildLogCard(
     BuildContext context, 
     IconData icon, Color color, 
