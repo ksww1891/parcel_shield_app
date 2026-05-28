@@ -4,6 +4,8 @@ import 'package:firebase_database/firebase_database.dart';
 import '../services/bluetooth_service.dart';
 import '../widgets/package_visualizer.dart';
 import 'settings_screen.dart';
+import '../services/mqtt_service.dart';
+import 'dart:async';
 
 // 공통 컬러 팔레트
 const Color primaryBlue = Color(0xFF3182F6);
@@ -39,26 +41,51 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool hasPackage = true;
-  bool isCameraActive = true;
-  bool isScanning = false;
+  bool hasPackage = false;
+  bool isCameraActive = false;
   bool isLocked = true;
-
-  double currentWeight = 1.2; // 임시 무게 데이터
+  bool isScanning = false;
+  
+  double currentWeight = 0.0; // MQTT 연동 전 임시 무게 데이터
   String recentNotification = "알림 대기 중..."; // 파이어베이스 연동 전 초기 문구
-
-  // Firebase 경로 설정
-  final DatabaseReference _lockRef = FirebaseDatabase.instance.ref('device_status/is_locked');
+  //MQTT, Firebase 연동을 위한 서비스 인스턴스 생성
+  final MqttService _mqttService = MqttService();
   final DatabaseReference _logsRef = FirebaseDatabase.instance.ref('device_logs/device_uuid_001');
+  // 자동 잠금 타이머 변수 선언
+  Timer? _autoLockTimer;
 
   @override
   void initState() {
     super.initState();
     _initBluetooth();
-    _listenToLockStatus();
     _listenToRecentNotification(); // 🔥 파이어베이스 최근 알림 수신 시작
+    _connectAndListenMQTT();
   }
 
+  // 🌟 MQTT 연결 및 상태 업데이트 리스너 함수
+  void _connectAndListenMQTT() async {
+    bool isConnected = await _mqttService.connect();
+    if (isConnected) {
+      _mqttService.statusStream.listen((statusData) {
+        if (mounted) {
+          setState(() {
+            currentWeight = (statusData['weight'] ?? 0.0).toDouble();
+            isCameraActive = statusData['cameraIsOn'] == 'true';
+            debugPrint('MQTT 상태 업데이트 - 무게: $currentWeight, 카메라: $isCameraActive');
+            if(currentWeight > 0) {
+              hasPackage = true;
+              isLocked = true; // 무게가 감지되면 자동으로 잠금 상태로 전환 (옵션)
+            } else {
+              hasPackage = false;
+              isLocked = false; // 무게가 0이면 패키지가 없는 것으로 간주하여 잠금 해제 (옵션)
+            }
+            //
+          });
+        }
+      });
+    }
+  }
+  
   // 🌟 파이어베이스에서 가장 최근 로그 1개만 가져오는 리스너
   void _listenToRecentNotification() {
     // timestamp 기준으로 정렬 후 가장 마지막(최신) 데이터 1개만 스트리밍
@@ -102,20 +129,36 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _listenToLockStatus() {
-    _lockRef.onValue.listen((DatabaseEvent event) {
-      final bool? lockedValue = event.snapshot.value as bool?;
-      if (lockedValue != null && mounted) {
-        setState(() {
-          isLocked = lockedValue;
-          hasPackage = isLocked;
-        });
-      }
-    });
-  }
+  // 🌟 잠금 상태 업데이트 함수 (타이머 이용하는 자동 재잠금 로직 포함)
+  void _updateLockStatus(bool newStatus) {
+    // 👈 2. 기존 함수 내용을 지우고 아래의 '자동 재잠금 로직'이 결합된 코드로 덮어씌워 줍니다.
+    
+    // 혹시 이미 돌아가고 있는 자동 잠금 타이머가 있다면 초기화 (버튼을 연타했을 때 타이머 꼬임 방지)
+    _autoLockTimer?.cancel();
 
-  void _updateLockStatus(bool lock) {
-    _lockRef.set(lock);
+    // 현재의 잠금 상태(isLocked)를 기반으로 MQTT 스위칭 신호 발행
+    _mqttService.publishLock(newStatus);
+
+    setState(() {
+      isLocked = newStatus;
+    });
+
+    // 🔒 만약 이번에 '잠금 해제(false)' 상태가 되었다면 30초 타이머 발동!
+    if (newStatus == false) {
+      debugPrint('🔓 잠금 해제 감지: 30초 후 자동 재잠금 타이머를 시작합니다.');
+      
+      _autoLockTimer = Timer(const Duration(seconds: 10), () {
+        // 30초가 지났을 때 실행될 코드 영역
+        if (mounted && isLocked == false) { // 앱 화면이 켜져있고, 아직 열려있는 상태라면
+          debugPrint('⏰ 30초 경과: 자동으로 다시 잠금 상태로 전환하고 MQTT 명령을 발행합니다.');
+          
+          setState(() {
+            isLocked = true; // 다시 잠금 상태로 원복
+          });
+          _mqttService.publishLock(isLocked); 
+        }
+      });
+    }
   }
 
   Future<void> _initBluetooth() async {
@@ -142,6 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgLight,
+      //설정 아이콘 우측 상단 배치
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -153,6 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 10),
         ],
       ),
+      // 전체 화면을 Stack으로 구성하여, 하단 네비게이션 바와 겹치지 않도록 레이아웃 조정
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
@@ -177,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             
-            const Spacer(flex: 2), // 🌟 헤더와 비주얼라이저 사이의 유연한 간격
+            const Spacer(flex: 2),
 
             // 비주얼라이저
             SizedBox(
@@ -188,9 +233,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const Spacer(flex: 2), // 🌟 비주얼라이저와 상태 박스 사이의 유연한 간격
+            const Spacer(flex: 2),
 
-            // 상태 정보 박스
+            // 상태 정보 박스(2열로 무게, 최근 알림)
             Row(
               children: [
                 // 현재 무게 박스
@@ -271,11 +316,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
 
-            const Spacer(flex: 2), // 🌟 상태 박스와 하단 버튼 사이의 유연한 간격 (여기를 좀 더 넓게 배분)
+            const Spacer(flex: 2),
 
             // 하단 버튼 영역
             Row(
               children: [
+                // 스캔 버튼
                 Expanded(
                   flex: 1,
                   child: Container(
@@ -305,6 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // 수동 잠금 해제 버튼
                 Expanded(
                   flex: 2,
                   child: Container(
@@ -330,11 +377,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(isLocked ? CupertinoIcons.lock_open_fill : CupertinoIcons.lock_fill, color: Colors.white, size: 20),
+                              Icon(isLocked ? CupertinoIcons.lock_fill : CupertinoIcons.lock_open_fill, color: Colors.white, size: 20),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                    isLocked ? "원격 문 열기" : "수동 잠그기",
+                                    isLocked ? "원격 잠금해제" : "잠금 해제 됨",
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)
                                 ),
@@ -348,10 +395,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 120), // 🌟 하단 네비게이션 바 공간을 고려한 최소 여백 (120 -> 80으로 축소)
+            const SizedBox(height: 120), 
           ],
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    _autoLockTimer?.cancel(); // 자동 잠금 타이머가 있다면 해제
+    _mqttService.client.disconnect();
+    _mqttService.dispose();
+    super.dispose();
   }
 }
