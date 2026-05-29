@@ -52,7 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final MqttService _mqttService = MqttService();
   final DatabaseReference _logsRef = FirebaseDatabase.instance.ref('device_logs/device_uuid_001');
   // 자동 잠금 타이머 변수 선언
-  Timer? _autoLockTimer;
+  Timer? _timer;
+  int remaintime = 30; // 자동 잠금까지 남은 시간 (초 단위)
 
   @override
   void initState() {
@@ -70,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             currentWeight = (statusData['weight'] ?? 0.0).toDouble();
-            isCameraActive = statusData['cameraIsOn'] == 'true';
+            isCameraActive = statusData['isCameraOn'] == true;
+
             debugPrint('MQTT 상태 업데이트 - 무게: $currentWeight, 카메라: $isCameraActive');
             if(currentWeight > 0) {
               hasPackage = true;
@@ -129,14 +131,35 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+   void startTimer(){
+    _timer = Timer.periodic(Duration(seconds: 1), (timer){
+      setState(() {
+        if (remaintime > 0) {
+          remaintime--;  //남은 시간을 1초씩 줄인다
+        }  
+        else{
+          if (mounted && isLocked == false) { // 앱 화면이 켜져있고, 아직 열려있는 상태라면
+          debugPrint('⏰ 30초 경과: 자동으로 다시 잠금 상태로 전환하고 MQTT 명령을 발행합니다.');
+          
+          setState(() {
+            isLocked = true; // 다시 잠금 상태로 원복
+          });
+          _mqttService.publishLock(isLocked); 
+        }
+          _timer?.cancel();  //시간이 0이되면 타이머 중지
+        }
+      });
+    });
+  }
+
   // 🌟 잠금 상태 업데이트 함수 (타이머 이용하는 자동 재잠금 로직 포함)
   void _updateLockStatus(bool newStatus) {
     // 👈 2. 기존 함수 내용을 지우고 아래의 '자동 재잠금 로직'이 결합된 코드로 덮어씌워 줍니다.
     
     // 혹시 이미 돌아가고 있는 자동 잠금 타이머가 있다면 초기화 (버튼을 연타했을 때 타이머 꼬임 방지)
-    _autoLockTimer?.cancel();
+    _timer?.cancel();
 
-    // 현재의 잠금 상태(isLocked)를 기반으로 MQTT 스위칭 신호 발행
+    //MQTT로 새로운 잠금 상태 발행
     _mqttService.publishLock(newStatus);
 
     setState(() {
@@ -146,18 +169,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // 🔒 만약 이번에 '잠금 해제(false)' 상태가 되었다면 30초 타이머 발동!
     if (newStatus == false) {
       debugPrint('🔓 잠금 해제 감지: 30초 후 자동 재잠금 타이머를 시작합니다.');
-      
-      _autoLockTimer = Timer(const Duration(seconds: 10), () {
-        // 30초가 지났을 때 실행될 코드 영역
-        if (mounted && isLocked == false) { // 앱 화면이 켜져있고, 아직 열려있는 상태라면
-          debugPrint('⏰ 30초 경과: 자동으로 다시 잠금 상태로 전환하고 MQTT 명령을 발행합니다.');
-          
-          setState(() {
-            isLocked = true; // 다시 잠금 상태로 원복
-          });
-          _mqttService.publishLock(isLocked); 
-        }
-      });
+
+      remaintime = 10; // 타이머 시작 전에 남은 시간을 30초로 초기화
+      startTimer(); // 남은 시간 카운트 시작
     }
   }
 
@@ -230,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: PackageVisualizer(
                 hasPackage: hasPackage,
                 isCameraActive: isCameraActive,
+                isLocked: isLocked,
               ),
             ),
 
@@ -381,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                    isLocked ? "원격 잠금해제" : "잠금 해제 됨",
+                                    isLocked ? "원격 잠금해제" : "잠금 해제 됨($remaintime초)",
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)
                                 ),
@@ -403,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   @override
   void dispose() {
-    _autoLockTimer?.cancel(); // 자동 잠금 타이머가 있다면 해제
+    _timer?.cancel(); // 자동 잠금 타이머가 있다면 해제
     _mqttService.client.disconnect();
     _mqttService.dispose();
     super.dispose();

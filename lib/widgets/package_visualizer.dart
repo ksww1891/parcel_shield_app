@@ -11,11 +11,13 @@ const Color tossTextDark = Color(0xFF333D4B); // 진한 텍스트
 class PackageVisualizer extends StatefulWidget {
   final bool hasPackage;
   final bool isCameraActive;
+  final bool isLocked; // 🔑 상우님이 요청하신 잠금 상태 변수 추가
 
   const PackageVisualizer({
     super.key,
     required this.hasPackage,
     required this.isCameraActive,
+    required this.isLocked, // 생성자 필수값 추가
   });
 
   @override
@@ -32,7 +34,7 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
     _blinkController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
+    );//.repeat(reverse: true);
 
     _opacityAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
       CurvedAnimation(parent: _blinkController, curve: Curves.easeIn),
@@ -55,28 +57,14 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
         boxShadow: [
           // 🌟 토스 특유의 아주 은은하고 넓게 퍼지는 그림자
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withAlpha(10), // 기존 구버전 경고 차단용 최신 alpha 규격 적용
             blurRadius: 24,
             offset: const Offset(0, 8),
           )
         ],
       ),
       child: Stack(
-        children: [
-          // 모델명 텍스트 (더 깔끔하게)
-          Positioned(
-            top: 30, left: 30,
-            child: Text(
-              "Parcel Shield",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: tossBg.withValues(alpha: 0.8), // 아주 연하게 배경처럼
-                letterSpacing: -0.5,
-              ),
-            ),
-          ),
-
+        children: [          
           // 📸 우측 상단: 카메라 모듈 (둥글고 깔끔한 알약 형태)
           Positioned(
             top: 30, right: 30,
@@ -112,7 +100,8 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
                           width: 6, height: 6,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: widget.isCameraActive ? tossRed : Colors.grey.shade400,
+                            // 💡 카메라 상태 혹은 잠금해제 상태일 때 빨갛게 동기화되어 가시성 확보
+                            color: (widget.isCameraActive || !widget.isLocked) ? tossRed : Colors.grey.shade400,
                           ),
                         ),
                       ),
@@ -121,12 +110,54 @@ class _PackageVisualizerState extends State<PackageVisualizer> with SingleTicker
                         widget.isCameraActive ? "REC" : "OFF",
                         style: TextStyle(
                           fontSize: 10,
-                          color: widget.isCameraActive ? tossRed : Colors.grey.shade500,
+                          color: (widget.isCameraActive || !widget.isLocked) ? tossRed : Colors.grey.shade500,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   )
+                ],
+              ),
+            ),
+          ),
+
+          // 🔐 실시간 자물쇠 애니메이션 인디케이터 (Parcel Shield 텍스트 하단 배치)
+          Positioned(
+            top: 30, left: 30,
+
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: widget.isLocked ? tossSoftBlue : tossRed.withAlpha(25),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 자물쇠 열림/닫힘 애니메이션 아이콘
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      return ScaleTransition(scale: animation, child: child);
+                    },
+                    child: Icon(
+                      widget.isLocked ? CupertinoIcons.lock_fill : CupertinoIcons.lock_open_fill,
+                      key: ValueKey<bool>(widget.isLocked),
+                      size: 20,
+                      color: widget.isLocked ? tossBlue : tossRed,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.isLocked ? "보관함 잠김" : "잠금 해제됨",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isLocked ? tossBlue : tossRed,
+                    ),
+                  ),
                 ],
               ),
             ),
