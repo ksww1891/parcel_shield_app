@@ -71,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             currentWeight = (statusData['weight'] ?? 0.0).toDouble();
-            isCameraActive = statusData['isCameraOn'] == true;
+            isCameraActive = statusData['isCameraOn'] == "true";
 
             debugPrint('MQTT 상태 업데이트 - 무게: $currentWeight, 카메라: $isCameraActive');
             if(currentWeight > 0) {
@@ -79,7 +79,6 @@ class _HomeScreenState extends State<HomeScreen> {
               isLocked = true; // 무게가 감지되면 자동으로 잠금 상태로 전환 (옵션)
             } else {
               hasPackage = false;
-              isLocked = false; // 무게가 0이면 패키지가 없는 것으로 간주하여 잠금 해제 (옵션)
             }
             //
           });
@@ -112,12 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
           String message = "새로운 알림이 있습니다.";
           if (eventType == 'THEFT_ATTEMPT') {
             message = '도난 의심 감지됨! 🚨';
-          } else if (eventType == 'PACKAGE_ARRIVED') {
-            message = '새로운 택배 도착 📦';
-          } else if (eventType == 'DOOR_OPENED') {
-            message = '택배함 문 열림 🔓';
-          } else if (eventType == 'DOOR_CLOSED') {
-            message = '택배함 문 닫힘 🔒';
+          } else if (eventType == 'PACKAGE_DEPOSITED') {
+            message = '새로운 택배 도착! 📦';
+          } else if (eventType == 'PACKAGE_RETRIEVED') {
+            message = '택배가 인수 완료! 🏃‍♂️';
           }
 
           // 3. UI 업데이트
@@ -170,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (newStatus == false) {
       debugPrint('🔓 잠금 해제 감지: 30초 후 자동 재잠금 타이머를 시작합니다.');
 
-      remaintime = 10; // 타이머 시작 전에 남은 시간을 30초로 초기화
+      remaintime = 30; // 타이머 시작 전에 남은 시간을 30초로 초기화
       startTimer(); // 남은 시간 카운트 시작
     }
   }
@@ -321,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           recentNotification, // Firebase에서 받아온 문자열 표시
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark, height: 1.4),
-                          maxLines: 2,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
