@@ -10,7 +10,7 @@ Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'smartbox_foreground', 
+    'parcelshield_foreground', 
     '스마트키 자동 탐색', 
     description: '앱이 꺼져도 비콘 택배함을 찾기 위해 실행 중입니다.',
     importance: Importance.low, 
@@ -29,7 +29,7 @@ Future<void> initializeBackgroundService() async {
       onStart: onStart, 
       autoStart: false, 
       isForegroundMode: true,
-      notificationChannelId: 'raspberrypi_scan_channel',
+      notificationChannelId: 'parcelshield_foreground',
       initialNotificationTitle: 'Parcel Shield 스마트키 켜짐',
       initialNotificationContent: '주변 Parcel Shield를 탐색 중입니다...',
       foregroundServiceNotificationId: 888,
@@ -66,6 +66,7 @@ void onStart(ServiceInstance service) async {
       
       if (!shouldScan) {
         FlutterBluePlus.stopScan(); // 스캔 강제 중지
+        service.stopSelf();         // 🔥 핵심 추가: 백그라운드 서비스를 완전히 종료하여 알림창 제거!
       }
     }
   });
@@ -80,14 +81,14 @@ void onStart(ServiceInstance service) async {
   const String targetUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"; // 라즈베리파이 UUID
 
   // 10초마다 5초씩 백그라운드 스캔 (배터리 최적화)
-  Timer.periodic(const Duration(seconds: 10), (timer) async {
+  Timer.periodic(const Duration(seconds: 3), (timer) async {
     if (isCoolingDown || !shouldScan) return;
     
     try {
       // 🌟 핵심: 화면이 꺼져도 안드로이드 하드웨어가 이 UUID만 감시하도록 필터링!
       await FlutterBluePlus.startScan(
         withServices: [Guid(targetUuid)], 
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 15),
         androidUsesFineLocation: true,
       );
     } catch (e) {

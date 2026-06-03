@@ -28,7 +28,7 @@ class MqttService {
         .startClean();
     client.connectionMessage = connMessage;
 
-    try {
+    try { 
       await client.connect();
     } catch (e) {
       debugPrint('MQTT 연결 실패: $e');

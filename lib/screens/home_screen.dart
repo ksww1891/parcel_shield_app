@@ -81,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Permission.locationAlways, 
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
+      Permission.notification,
     ].request();
     debugPrint("✅ 블루투스 권한 확인 완료.");
   }
@@ -93,9 +94,9 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             currentWeight = (statusData['weight'] ?? 0.0).toDouble();
-            isCameraActive = statusData['isCameraOn'] == "true";
-            isLocked = statusData['isLocked'] == "true";
-            remainTime = statusData['remainTime'].toInt()?? 30;
+            isCameraActive = statusData['isCameraOn'] == true;
+            isLocked = statusData['isLocked'] == true;
+            remainTime = statusData['remainTime']?? 30;
             hasPackage = currentWeight > 0.1;
             isLoading = false; // 상태 업데이트가 오면 로딩 종료
             if (!isLocked && remainTime > 0 && !isLoading) {
@@ -147,21 +148,26 @@ class _HomeScreenState extends State<HomeScreen> {
   // 🌟 홈 화면의 자동 스캔 ON/OFF 토글 함수 수정
   void _toggleAutoScan() async {
     final service = FlutterBackgroundService();
-    bool isRunning = await service.isRunning(); 
 
-    // 만약 백그라운드 서비스 자체가 꺼져있다면 먼저 서비스를 깨웁니다.
-    if (!isRunning) {
-      await service.startService();
-    }
-
+    // 1. 상태를 먼저 반전시켜 UI를 즉시 업데이트합니다.
     setState(() {
       isAutoScanEnabled = !isAutoScanEnabled;
     });
 
-    // 🌟 핵심: 백그라운드 공간으로 데이터(Map 형태)를 실어서 신호 전달!
-    service.invoke('changeScanStatus', {
-      'isEnabled': isAutoScanEnabled,
-    });
+    if (isAutoScanEnabled) {
+      // 🟢 [스캔 ON] 백그라운드 서비스가 꺼져있다면 깨웁니다.
+      bool isRunning = await service.isRunning(); 
+      if (!isRunning) {
+        await service.startService();
+      }
+      // 서비스에 스캔 시작 신호 전달
+      service.invoke('changeScanStatus', {'isEnabled': true});
+      
+    } else {
+      // 🔴 [스캔 OFF] 끄라는 신호만 보냅니다. 
+      // (이 신호를 받으면 백그라운드에서 스캔을 멈추고 알아서 stopSelf()로 알림을 끄며 자폭합니다)
+      service.invoke('changeScanStatus', {'isEnabled': false});
+    }
 
     debugPrint("스마트키 자동 스캔 기능을 ${isAutoScanEnabled ? '켭니다(ON)' : '끕니다(OFF)'}.");
   }
