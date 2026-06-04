@@ -273,15 +273,15 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
                 color = primaryRed;
                 title = '도난 의심 경고';
                 break;
-              case 'BATTERY_LOW':
-                icon = CupertinoIcons.battery_25;
-                color = Colors.orange;
-                title = '배터리 부족';
-                break;
               case 'PACKAGE_DEPOSITED':
                 icon = CupertinoIcons.cube_box_fill;
                 color = primaryBlue;
                 title = '택배 보관 완료';
+                break;
+              case 'PACKAGE_RETRIEVED':
+                icon = CupertinoIcons.checkmark_seal_fill;
+                color = textGrey;
+                title = '택배 회수 완료';
                 break;
               default:
                 icon = CupertinoIcons.bell_fill;

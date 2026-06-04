@@ -94,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             currentWeight = (statusData['weight'] ?? 0.0).toDouble();
+            currentWeight = currentWeight >= 0.1 ? double.parse(currentWeight.toStringAsFixed(2)) : 0.0; // 0.1kg 미만은 0으로 처리
             isCameraActive = statusData['isCameraOn'] == true;
             isLocked = statusData['isLocked'] == true;
             remainTime = statusData['remainTime']?? 30;

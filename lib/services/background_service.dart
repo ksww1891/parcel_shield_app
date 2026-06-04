@@ -56,7 +56,6 @@ void onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
 
-  // 🌟 상우님의 '스캔 제어' 아이디어 적용 플래그
   bool shouldScan = true; 
 
   service.on('changeScanStatus').listen((event) {
@@ -80,7 +79,6 @@ void onStart(ServiceInstance service) async {
   bool isCoolingDown = false;
   const String targetUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"; // 라즈베리파이 UUID
 
-  // 10초마다 5초씩 백그라운드 스캔 (배터리 최적화)
   Timer.periodic(const Duration(seconds: 3), (timer) async {
     if (isCoolingDown || !shouldScan) return;
     
