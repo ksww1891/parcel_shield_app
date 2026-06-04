@@ -166,20 +166,16 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     }
   }
 
-  // 🌟 변경 포인트 1 & 2: 경로 수정 및 숫자형 타임스탬프 필터링 적용
   Query get _buildQuery {
-    // 경로를 상위 그룹화 노드인 'device_logs'로 변경
     Query query = FirebaseDatabase.instance.ref('device_logs/device_uuid_001').orderByChild('timestamp');
 
     if (widget.selectedDate != null) {
-      // 선택한 날짜의 00시 00분 00초 (밀리초)
       int startOfDayMs = DateTime(
         widget.selectedDate!.year, 
         widget.selectedDate!.month, 
         widget.selectedDate!.day
       ).millisecondsSinceEpoch;
       
-      // 선택한 날짜의 23시 59분 59초 (밀리초)
       int endOfDayMs = DateTime(
         widget.selectedDate!.year, 
         widget.selectedDate!.month, 
@@ -187,7 +183,6 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
         23, 59, 59, 999
       ).millisecondsSinceEpoch;
 
-      // 숫자(밀리초) 범위로 필터링
       query = query.startAt(startOfDayMs).endAt(endOfDayMs);
     } else {
       query = query.limitToLast(_currentLimit);
@@ -211,12 +206,11 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
             data.forEach((key, value) {
               if (value is Map) {
                 freshList.add({
-                  'key': key, // 자동 생성된 Push Key (-Nxyz...)
+                  'key': key, 
                   ...value,
                 });
               }
             });
-            // 🌟 변경 포인트 3: 정수형(Int)으로 변환 후 안전하게 내림차순 정렬
             freshList.sort((a, b) {
               int timeA = int.tryParse(a['timestamp'].toString()) ?? 0;
               int timeB = int.tryParse(b['timestamp'].toString()) ?? 0;
@@ -245,13 +239,13 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
           itemCount: _cachedLogs.length,
           itemBuilder: (context, index) {
             final item = _cachedLogs[index];
+            final String logKey = item['key'].toString(); // 🌟 Firebase 고유 키 추출
             final String eventType = item['eventType'] ?? 'UNKNOWN';
             final String message = item['message'] ?? '';
-            final bool isRead = item['isRead'] ?? true;
+            final bool isRead = item['isRead'] ?? false; // 기본값을 안읽음(false) 처리하는게 안전합니다
             final String? imageUrl = item['imageUrl'];
             final String? videoUrl = item['videoUrl'];
             
-            // 🌟 변경 포인트 4: Unix Epoch(밀리초)를 DateTime으로 변환하여 화면에 표시
             String timeFormatted = '알 수 없음';
             if (item['timestamp'] != null) {
               try {
@@ -289,15 +283,18 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
                 title = '알림';
             }
 
-            return _buildLogCard(context, icon, color, title, message, timeFormatted, isRead, imageUrl, videoUrl);
+            // 🌟 logKey 파라미터를 추가해서 전달!
+            return _buildLogCard(context, logKey, icon, color, title, message, timeFormatted, isRead, imageUrl, videoUrl);
           },
         );
       },
     );
   }
 
+  // 🌟 함수 서명에 logKey 추가
   Widget _buildLogCard(
     BuildContext context, 
+    String logKey,
     IconData icon, Color color, 
     String title, String desc, 
     String time, bool isRead, 
@@ -308,109 +305,125 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
     final bool hasMedia = hasVideo || hasImage;
     final String targetUrl = hasVideo ? videoUrl : (hasImage ? imageUrl : '');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isRead ? Colors.white : color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(24),
-        border: isRead ? Border.all(color: Colors.transparent) : Border.all(color: color.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+    // 🌟 1. 재사용 가능한 읽음 처리 내부 함수
+    void markAsRead() {
+      if (!isRead) {
+        FirebaseDatabase.instance
+            .ref('device_logs/device_uuid_001/$logKey')
+            .update({'isRead': true});
+      }
+    }
+
+    // 🌟 2. 전체 카드를 GestureDetector로 감싸서 터치 시 읽음 처리!
+    return GestureDetector(
+      onTap: markAsRead,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isRead ? Colors.white : color.withValues(alpha: 0.05), // 안 읽은 알림은 옅은 색 배경
+          borderRadius: BorderRadius.circular(24),
+          border: isRead ? Border.all(color: Colors.transparent) : Border.all(color: color.withValues(alpha: 0.3), width: 1),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          if (!isRead)
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              width: 6, height: 6,
-                              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            if (!isRead)
+                              Container(
+                                margin: const EdgeInsets.only(right: 6),
+                                width: 6, height: 6,
+                                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                              ),
+                            Expanded(
+                              child: Text(
+                                title, 
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textDark),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          Expanded(
-                            child: Text(
-                              title, 
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textDark),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(time, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textGrey)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  desc, 
-                  style: const TextStyle(fontSize: 14, color: textNormal, height: 1.4),
-                ),
-                if (hasMedia) ...[
-                  const SizedBox(height: 12),
-                  InkWell(
-                    onTap: () async {
-                      if (targetUrl.isNotEmpty) {
-                        final Uri uri = Uri.parse(targetUrl);
-                        if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("미디어를 열 수 없습니다.")),
-                            );
+                      const SizedBox(width: 8),
+                      Text(time, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textGrey)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    desc, 
+                    style: const TextStyle(fontSize: 14, color: textNormal, height: 1.4),
+                  ),
+                  if (hasMedia) ...[
+                    const SizedBox(height: 12),
+                    InkWell(
+                      // 🌟 3. 미디어 버튼을 누를 때도 읽음 처리 후 브라우저 열기!
+                      onTap: () async {
+                        markAsRead(); // 누르는 즉시 읽음 처리 통신 날림
+                        
+                        if (targetUrl.isNotEmpty) {
+                          final Uri uri = Uri.parse(targetUrl);
+                          if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("미디어를 열 수 없습니다.")),
+                              );
+                            }
                           }
                         }
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: primaryBlue.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            hasVideo ? CupertinoIcons.play_circle_fill : CupertinoIcons.photo_fill,
-                            size: 16,
-                            color: primaryBlue,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            hasVideo ? "영상 확인하기" : "사진 확인하기",
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              hasVideo ? CupertinoIcons.play_circle_fill : CupertinoIcons.photo_fill,
+                              size: 16,
                               color: primaryBlue,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              hasVideo ? "영상 확인하기" : "사진 확인하기",
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
