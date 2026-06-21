@@ -201,23 +201,25 @@ class _UnifiedLogListState extends State<UnifiedLogList> {
 
         if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
           List<Map<dynamic, dynamic>> freshList = [];
-          final data = snapshot.data!.snapshot.value;
-          if (data is Map) {
-            data.forEach((key, value) {
-              if (value is Map) {
-                freshList.add({
-                  'key': key, 
-                  ...value,
-                });
-              }
-            });
-            freshList.sort((a, b) {
-              int timeA = int.tryParse(a['timestamp'].toString()) ?? 0;
-              int timeB = int.tryParse(b['timestamp'].toString()) ?? 0;
-              return timeB.compareTo(timeA);
-            });
-            _cachedLogs = freshList; 
+          
+          // 🌟 가장 강력한 파싱 문법: Map이든 List든 무시하고 무조건 children으로 뽑아냅니다.
+          for (final child in snapshot.data!.snapshot.children) {
+            final value = child.value;
+            if (value is Map) {
+              freshList.add({
+                'key': child.key, // 자동 생성된 Push Key 
+                ...value,
+              });
+            }
           }
+          
+          freshList.sort((a, b) {
+            int timeA = int.tryParse(a['timestamp'].toString()) ?? 0;
+            int timeB = int.tryParse(b['timestamp'].toString()) ?? 0;
+            return timeB.compareTo(timeA);
+          });
+          
+          _cachedLogs = freshList; 
         } else if (snapshot.connectionState == ConnectionState.active && snapshot.data?.snapshot.value == null) {
           _cachedLogs = [];
         }

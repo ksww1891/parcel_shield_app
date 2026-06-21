@@ -44,13 +44,13 @@ dependencies:
   mqtt_client: ^10.11.11
   flutter_background_service: ^5.1.0
   flutter_local_notifications: ^18.0.1
-  flutter_beacon: ^0.5.1
+  shared_preferences: ^2.5.5
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  flutter_launcher_icons: ^0.13.1
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -99,3 +99,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icon.png"
+  min_sdk_android: 21 # 안드로이드 최소 버전 (캡스톤 프로젝트 설정에 맞춤)

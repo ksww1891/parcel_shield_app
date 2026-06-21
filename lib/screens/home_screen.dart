@@ -5,7 +5,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../widgets/package_visualizer.dart';
-import 'settings_screen.dart';
 import '../services/mqtt_service.dart';
 
 const Color primaryBlue = Color(0xFF3182F6);
@@ -15,7 +14,7 @@ const Color textDark = Color(0xFF191F28);
 const Color textGrey = Color(0xFF8B95A1);
 
 const List<String> weekDays = ['월', '화', '수', '목', '금', '토', '일'];
-// 그라데이션 정의
+
 const Gradient lockedGradient = LinearGradient(
   colors: [Color(0xFF63A4FF), primaryBlue],
   begin: Alignment.topLeft,
@@ -35,10 +34,11 @@ const Gradient scanButtonGradient = LinearGradient(
 );
 
 const Gradient loadingGradient = LinearGradient(
-  colors: [Color(0xFF6BA2F9), Color(0xFF4A8BF5)], // 기존 파란색보다 살짝 옅고 차분한 블루
+  colors: [Color(0xFF6BA2F9), Color(0xFF4A8BF5)], 
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -50,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool hasPackage = false;
   bool isCameraActive = false;
   bool isLocked = true;
-  bool isAutoScanEnabled = false;
+  bool isAutoScanEnabled = false; // 🌟 기본값 false (앱 켜면 무조건 꺼진 상태로 시작)
   bool isLoading = false;
   int remainTime = 30;
   double currentWeight = 0.0; 
@@ -60,21 +60,27 @@ class _HomeScreenState extends State<HomeScreen> {
   final DatabaseReference _logsRef = FirebaseDatabase.instance.ref('device_logs/device_uuid_001');
  
   Timer? _timer;
-  
 
   @override
   void initState() {
     super.initState();
-    _initPermissions(); // 🌟 앱 실행 시 권한 요청
+    _initPermissions(); 
     _listenToRecentNotification(); 
     _connectAndListenMQTT();
-    FlutterBackgroundService().isRunning().then((isRunning) {
-      setState(() {
-        isAutoScanEnabled = isRunning;
-      });
+    final service = FlutterBackgroundService();
+    
+    // 1. 백그라운드로부터 대답(receiveScanStatus)이 오면 UI 스위치를 업데이트합니다.
+    service.on('receiveScanStatus').listen((event) {
+      if (mounted && event != null && event.containsKey('isEnabled')) {
+        setState(() {
+          isAutoScanEnabled = event['isEnabled'] as bool;
+        });
+        debugPrint("📱 [UI] 백그라운드 스캔 상태를 동기화했습니다: $isAutoScanEnabled");
+      }
     });
+    service.invoke('requestScanStatus');
   }
-  // 블루투스 권한 확인 함수
+
   Future<void> _initPermissions() async {
     await [
       Permission.locationWhenInUse,
@@ -83,10 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
       Permission.bluetoothConnect,
       Permission.notification,
     ].request();
-    debugPrint("✅ 블루투스 권한 확인 완료.");
+    debugPrint("✅ 권한 확인 완료.");
   }
 
-  // MQTT 연결 및 상태 업데이트 리스너 함수
   void _connectAndListenMQTT() async {
     bool isConnected = await _mqttService.connect();
     if (isConnected) {
@@ -94,31 +99,30 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             currentWeight = (statusData['weight'] ?? 0.0).toDouble();
-            currentWeight = currentWeight >= 0.1 ? double.parse(currentWeight.toStringAsFixed(2)) : 0.0; // 0.1kg 미만은 0으로 처리
+            currentWeight = currentWeight >= 0.1 ? double.parse(currentWeight.toStringAsFixed(2)) : 0.0; 
             isCameraActive = statusData['isCameraOn'] == true;
             isLocked = statusData['isLocked'] == true;
             remainTime = statusData['remainTime']?? 30;
             hasPackage = currentWeight > 0.1;
-            isLoading = false; // 상태 업데이트가 오면 로딩 종료
+            isLoading = false; 
             if (!isLocked && remainTime > 0 && !isLoading) {
-              startTimer(); // 잠금 해제 상태에서 타이머 시작
+              startTimer(); 
             }
-            debugPrint('MQTT 상태 업데이트 - 무게: $currentWeight, 카메라: $isCameraActive, 잠금: $isLocked');
           });
         }
       });
     }
   }
   
-  // Firebase Realtime Database에서 가장 최근 알림을 실시간으로 듣는 함수
+  // 🌟 변경 포인트: Map/List 에러를 피하는 가장 안전한 파싱 방법 적용
   void _listenToRecentNotification() {
     _logsRef.orderByChild('timestamp').limitToLast(1).onValue.listen((DatabaseEvent event) {
       if (event.snapshot.value != null && mounted) {
         try {
-          final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
-          final latestLog = data.values.first;
+          // snapshot.children.last를 쓰면 데이터 구조가 꼬여도 무조건 최신 1개를 정확히 뽑아옵니다.
+          final latestLog = event.snapshot.children.last.value as Map;
           
-          final int timestamp = latestLog['timestamp'] ?? 0;
+          final int timestamp = int.tryParse(latestLog['timestamp'].toString()) ?? 0;
           final String eventType = latestLog['eventType'] ?? '';
           
           final DateTime date = DateTime.fromMillisecondsSinceEpoch(timestamp);
@@ -134,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
           } else if (eventType == 'PACKAGE_DEPOSITED') {
             message = '새로운 택배 도착! 📦';
           } else if (eventType == 'PACKAGE_RETRIEVED') {
-            message = '택배가 인수 완료! 🏃‍♂️';
+            message = '택배 회수 완료! 🏃‍♂️';
           }
 
           setState(() {
@@ -146,41 +150,31 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-  // 🌟 홈 화면의 자동 스캔 ON/OFF 토글 함수 수정
+
   void _toggleAutoScan() async {
     final service = FlutterBackgroundService();
 
-    // 1. 상태를 먼저 반전시켜 UI를 즉시 업데이트합니다.
     setState(() {
       isAutoScanEnabled = !isAutoScanEnabled;
     });
 
     if (isAutoScanEnabled) {
-      // 🟢 [스캔 ON] 백그라운드 서비스가 꺼져있다면 깨웁니다.
-      bool isRunning = await service.isRunning(); 
-      if (!isRunning) {
-        await service.startService();
-      }
-      // 서비스에 스캔 시작 신호 전달
       service.invoke('changeScanStatus', {'isEnabled': true});
-      
     } else {
-      // 🔴 [스캔 OFF] 끄라는 신호만 보냅니다. 
-      // (이 신호를 받으면 백그라운드에서 스캔을 멈추고 알아서 stopSelf()로 알림을 끄며 자폭합니다)
       service.invoke('changeScanStatus', {'isEnabled': false});
     }
 
     debugPrint("스마트키 자동 스캔 기능을 ${isAutoScanEnabled ? '켭니다(ON)' : '끕니다(OFF)'}.");
   }
-  // 잠금 해제 후 카운트다운 타이머 함수
+
   void startTimer(){
     _timer = Timer.periodic(const Duration(seconds: 1), (timer){
       setState(() {
         if (remainTime > 0) {
-          remainTime--;  // 🌟 앱에서는 단순히 숫자를 깎아주는 시각 효과만 담당
+          remainTime--;  
         } else {
           setState(() {
-            isLocked = true; // 타이머 종료 시 잠금 상태로 복귀
+            isLocked = true; 
           });
           _timer?.cancel(); 
         }
@@ -192,25 +186,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgLight,
-      //상단에는 설정 아이콘
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.gear_alt_fill, color: textGrey, size: 26),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())),
-          ),
-          const SizedBox(width: 10),
-        ],
       ),
-      // 메인 3분할 레이아웃
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🌟 상단 텍스트: 택배함 상태에 따라 메시지와 이모지 변경(우리집 안심 택배함 \n 보관 중이에요 🔒 / 택배함 문이 열려있어요 🔓)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -223,9 +207,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const Spacer(flex: 2),
-            // 🌟 중간 시각화 영역: 패키지 존재 여부, 카메라 상태, 잠금 상태를 종합적으로 보여주는 커스텀 위젯
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.4, 
+              height: MediaQuery.of(context).size.height * 0.35, 
               child: PackageVisualizer(
                 hasPackage: hasPackage,
                 isCameraActive: isCameraActive,
@@ -233,10 +216,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Spacer(flex: 2),
-            // 🌟 하단 정보 카드: 현재 무게와 최근 알림을 나란히 보여주는 카드 레이아웃
             Row(
               children: [
-                //현재 무게 카드
                 Expanded(
                   child: Container(
                     height: 150,
@@ -272,7 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 12), 
-                // 최근 알림 카드
                 Expanded(
                   child: Container(
                     height: 150,
@@ -312,10 +292,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const Spacer(flex: 2),
-            // 🌟 하단 자동 스캔 토글과 잠금 해제 버튼이 나란히 배치된 Row
             Row(
               children: [
-                // 자동 스캔 토글 버튼
                 Expanded(
                   flex: 1,
                   child: Container(
@@ -366,7 +344,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // 잠금 해제 버튼
                 Expanded(
                   flex: 2,
                   child: Container(
@@ -387,10 +364,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: InkWell(
                         onTap: (() { 
                           setState(() {
-                            isLoading = !isLoading; // 버튼을 누르면 로딩 상태 토글
+                            isLoading = !isLoading; 
                           });
                           _mqttService.publishLock(!isLocked);
-                        }), // 버튼을 누르면 잠금 상태를 토글하여 MQTT로 발행
+                        }), 
                         borderRadius: BorderRadius.circular(18),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -400,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               isLoading 
                                 ? const CupertinoActivityIndicator(
                                     color: Colors.white, 
-                                    radius: 10, // 버튼 크기에 맞춘 세련된 미니 사이즈
+                                    radius: 10, 
                                   )
                               : Icon(
                                   isLocked ? CupertinoIcons.lock_fill : CupertinoIcons.lock_open_fill, 
