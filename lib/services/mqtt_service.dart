@@ -83,7 +83,8 @@ class MqttService {
       payloadMap = {
         "${deviceId}_command": {
           "command": "Unlock",
-          "duration": 30 // 잠금 해제 후 30초 뒤에 자동으로 다시 잠금 명령이 발행되도록 duration 필드 추가
+          "duration": 30,
+          "time" : DateTime.now().toIso8601String(),
         }
       };
     }

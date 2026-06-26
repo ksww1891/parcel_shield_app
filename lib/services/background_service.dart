@@ -8,8 +8,8 @@ import '../services/mqtt_service.dart';
 // 파일 맨 위에 추가
 import 'package:shared_preferences/shared_preferences.dart';
 // 🌟 Firebase 관련 패키지 임포트
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../firebase_options.dart'; // 경로 확인 필요
 
 Future<void> initializeBackgroundService() async {
@@ -95,7 +95,70 @@ void onStart(ServiceInstance service) async {
     debugPrint("🔥 [백그라운드] Firebase 초기화 에러: $e");
   }
 
-  // ... (기존 푸시 알림 초기화 및 logsRef.listen 로직 그대로 유지) ...
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
+      FlutterLocalNotificationsPlugin();
+      
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('ic_notification'); // 앱 아이콘으로 설정
+  const InitializationSettings initializationSettings =
+      InitializationSettings(android: initializationSettingsAndroid);
+  
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  const AndroidNotificationDetails androidPlatformChannelSpecifics =
+      AndroidNotificationDetails(
+    'emergency_alerts', 
+    '긴급 및 이벤트 알림', 
+    channelDescription: '도난 의심 및 택배 도착 알림',
+    importance: Importance.max,
+    priority: Priority.high,
+    showWhen: true,
+  );
+  const NotificationDetails platformChannelSpecifics =
+      NotificationDetails(android: androidPlatformChannelSpecifics);
+
+  final int serviceStartTime = DateTime.now().millisecondsSinceEpoch;
+  final DatabaseReference logsRef = FirebaseDatabase.instance.ref('device_logs/device_uuid_001');
+
+  logsRef
+      .orderByChild('timestamp')
+      .startAt(serviceStartTime)
+      .onChildAdded
+      .listen((DatabaseEvent event) {
+        
+    if (event.snapshot.value != null) {
+      final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+      final String eventType = data['eventType'] ?? 'UNKNOWN';
+
+      String notificationTitle = '';
+      String notificationBody = '';
+
+      switch (eventType) {
+        case 'THEFT_ATTEMPT':
+          notificationTitle = '🚨 도난 의심 감지!';
+          notificationBody = '택배함에서 비정상적인 무게 감소가 발생했습니다.';
+          break;
+        case 'PARCEL_ARRIVED':
+          notificationTitle = '📦 택배 도착';
+          notificationBody = '새로운 택배가 보관되었습니다.';
+          break;
+        case 'RECEIVED':
+          notificationTitle = '✅ 택배 수령 완료';
+          notificationBody = '스마트키 인증을 통해 택배를 수령했습니다.';
+          break;
+        default:
+          return; 
+      }
+
+      flutterLocalNotificationsPlugin.show(
+        event.snapshot.key.hashCode, 
+        notificationTitle,
+        notificationBody,
+        platformChannelSpecifics,
+      );
+      debugPrint("🔔 [백그라운드] 푸시 알림 전송 완료: $eventType");
+    }
+  });
 
   // =========================================================
   // 🌟 2. 스마트키 (BLE 스캔) 통제 로직
