@@ -45,6 +45,7 @@ dependencies:
   flutter_background_service: ^5.1.0
   flutter_local_notifications: ^18.0.1
   shared_preferences: ^2.5.5
+  flutter_dotenv: ^6.0.1
 
 
 dev_dependencies:
@@ -70,7 +71,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
+  assets:
+    - .env
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MqttService {
   final String broker = '8170eaccdd7f45dcb2c9abf3f3903959.s1.eu.hivemq.cloud'; 
   final int port = 8883; 
-  final String username = 'application'; 
-  final String password = 'Qwer1234';
-  final String deviceId = 'device_001';
+  final String username = dotenv.get('MQTT_USERNAME');
+  final String password = dotenv.get('MQTT_PASSWORD');
+  final String deviceId = dotenv.get('DEVICE_ID');
   
   late MqttServerClient client;
   

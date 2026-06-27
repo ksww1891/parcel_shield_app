@@ -5,12 +5,11 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../services/mqtt_service.dart';
-// 파일 맨 위에 추가
 import 'package:shared_preferences/shared_preferences.dart';
-// 🌟 Firebase 관련 패키지 임포트
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../firebase_options.dart'; // 경로 확인 필요
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -60,6 +59,7 @@ Future<bool> onIosBackground(ServiceInstance service) async {
 void onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
+  await dotenv.load(fileName: ".env"); // .env 파일 로드
   if (service is AndroidServiceInstance) {
     service.setAsBackgroundService();
   }
@@ -71,7 +71,7 @@ void onStart(ServiceInstance service) async {
   // 'bg_shouldScan' 값이 없으면 기본값 false. 있으면 그 값을 가져옴.
   bool shouldScan = prefs.getBool('bg_shouldScan') ?? false; 
   bool isCoolingDown = false;
-  const String targetUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"; 
+  final String targetUuid = dotenv.get('TARGET_UUID');
 
   // 🌟 [핵심 해결책 2] 혹시 앱이 강제 종료될 때 스캔이 비정상적으로 돌고 있었다면 
   // 블루투스가 꼬일 수 있으므로 서비스 시작 시 스캔을 한 번 강제로 멈춰서 초기화합니다.
