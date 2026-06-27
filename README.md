@@ -1,17 +1,37 @@
-# parcel_shield
+# 📦 IoT 및 AI 기반 스마트 택배 도난 방지 시스템 (Parcel Shield)
 
-A new Flutter project.
+기존 현관 CCTV 및 도어캠의 무차별적인 상시 촬영으로 인한 사생활 침해 문제를 공학적 아키텍처로 해결한 **하이브리드 스마트 보안 택배함** 프로젝트입니다.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## ✨ 핵심 기능 및 차별성
 
-A few resources to get you started if this is your first Flutter project:
+1. **사생활 보호형 목적성 비전 AI 분석**
+   - 주변 이웃을 상시 녹화하는 기존 도어캠과 달리, 평소에는 **로드셀 무게 센서**를 통해 택배함의 실시간 무게 변화만 감시합니다.
+   - "급격한 무게 감소(무단 반출 의심)" 상황이 트리거되는 시점에만 **YOLO 비전 AI 알고리즘**을 구동하여 미인증 사용자를 선별 채증함으로써 이웃 간 사생활 침해 갈등을 차단합니다.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+2. **BLE 근접 자동 인증**
+   - 스마트폰의 백그라운드 블루투스 탐색 제약을 피하기 위해 고정된 서비스 UUID 기반의 저전력 블루투스(BLE) 통신을 구현했습니다.
+   - **라즈베리 파이가 주변에 신호를 상시 송출(Advertising)**하고, **사용자의 스마트폰 앱이 이를 스캔(Scanning)**하여 택배함에 가까이 다가가기만 해도 별도의 조작 없이 문이 자동으로 열리도록 설계해 편의성을 높였습니다.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+3. **기록망과 제어망의 분리**
+   - **제어 및 실시간 모니터링 (MQTT)**: 초고속 응답이 필요한 기기 제어 및 실시간 무게 스트리밍, 긴급 이벤트 알림은 HiveMQ 브로커 기반 MQTTS(TLS 암호화 8883 포트) 프로토콜을 사용합니다.
+   - **기록 및 미디어 동기화 (Firebase)**: 로그 데이터, YOLO가 채증한 미디어 파일(Firebase Storage)은 파이어베이스를 통해 관리되며 모바일 앱에 실시간으로 반영됩니다.
+
+---
+
+## 🛠 Tech Stack (기술 스택)
+
+- **Device & Hardware**: Raspberry Pi 5, Load Cell (HX711), Web Cam
+- **Edge AI / Computer Vision**: Python 3, YOLO (Object Detection), OpenCV
+- **Cloud & Network**: MQTT (HiveMQ Cloud Broker, MQTTS), Firebase Realtime Database & Storage
+- **Mobile Application**: Flutter, Dart
+
+---
+
+## 📐 시스템 동작 프로세스
+
+1. **상시 감시**: 라즈베리 파이가 보관함의 무게를 실시간으로 측정하며 BLE 신호를 송출합니다.
+2. **근접 인증**: 등록된 사용자가 스마트폰을 소지하고 접근하면 앱이 백그라운드에서 신호를 스캔하여 자동으로 잠금을 해제합니다.
+3. **도난 감지**: 미인증 사용자가 택배를 무단 반출하여 급격한 무게 감소가 발생하면 YOLO 비전 AI가 작동하여 현장을 채증합니다.
+4. **실시간 알림**: 채증된 미디어는 Firebase Storage에 저장되고, 기록(URL)은 RTDB에 동기화되는 동시에 사용자의 Flutter 앱으로 MQTT 긴급 알림 푸시가 발송됩니다.
