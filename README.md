@@ -36,4 +36,6 @@
 3. **도난 감지**: 미인증 사용자가 택배를 무단 반출하여 급격한 무게 감소가 발생하면 YOLO 비전 AI가 작동하여 현장을 채증합니다.
 4. **실시간 알림**: 채증된 미디어는 Firebase Storage에 저장되고, 기록(URL)은 RTDB에 동기화되는 동시에 사용자의 Flutter 앱으로 MQTT 긴급 알림 푸시가 발송됩니다.
 
+---
+## 📊 캡스톤 디자인 발표 포스터
 <img width="2268" height="3402" alt="붙임3 캡스톤디자인 판넬_김이박_구역구분" src="https://github.com/user-attachments/assets/15127c39-96e4-4cdb-8898-ded715892123" />
