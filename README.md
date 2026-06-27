@@ -12,7 +12,7 @@
 
 2. **BLE 근접 자동 인증**
    - 스마트폰의 백그라운드 블루투스 탐색 제약을 피하기 위해 고정된 서비스 UUID 기반의 저전력 블루투스(BLE) 통신을 구현했습니다.
-   - **라즈베리 파이가 주변에 신호를 상시 송출(Advertising)**하고, **사용자의 스마트폰 앱이 이를 스캔(Scanning)**하여 택배함에 가까이 다가가기만 해도 별도의 조작 없이 문이 자동으로 열리도록 설계해 편의성을 높였습니다.
+   - **라즈베리 파이가 주변에 신호를 상시 송출**하고, **사용자의 스마트폰 앱이 이를 스캔**하여 택배함에 가까이 다가가기만 해도 별도의 조작 없이 문이 자동으로 열리도록 설계해 편의성을 높였습니다.
 
 3. **기록망과 제어망의 분리**
    - **제어 및 실시간 모니터링 (MQTT)**: 초고속 응답이 필요한 기기 제어 및 실시간 무게 스트리밍, 긴급 이벤트 알림은 HiveMQ 브로커 기반 MQTTS(TLS 암호화 8883 포트) 프로토콜을 사용합니다.
@@ -23,7 +23,7 @@
 ## 🛠 Tech Stack (기술 스택)
 
 - **Device & Hardware**: Raspberry Pi 5, Load Cell (HX711), Web Cam
-- **Edge AI / Computer Vision**: Python 3, YOLO (Object Detection), OpenCV
+- **Edge AI / Computer Vision**: Python 3, OpenCV, YOLO (Object Detection)
 - **Cloud & Network**: MQTT (HiveMQ Cloud Broker, MQTTS), Firebase Realtime Database & Storage
 - **Mobile Application**: Flutter, Dart
 
